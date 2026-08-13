@@ -9,7 +9,7 @@ export function buildBackOfficeNav(role: UserRole): NavSection[] {
     {
       label: "Catalog",
       items: [
-        { to: "/business", label: "Business profile", icon: Building2 },
+        { to: "/business", label: "Business Profile", icon: Building2 },
         { to: "/categories", label: "Categories", icon: FolderTree },
         { to: "/products", label: "Products", icon: Package },
         { to: "/coupons", label: "Coupons", icon: Ticket },
@@ -19,7 +19,7 @@ export function buildBackOfficeNav(role: UserRole): NavSection[] {
       label: "Operations",
       items: [
         { to: "/orders", label: "Orders", icon: ClipboardList },
-        { to: "/delivery-agents", label: "Delivery agents", icon: Truck },
+        { to: "/delivery-agents", label: "Delivery Agents", icon: Truck },
       ],
     },
   ];
@@ -34,7 +34,7 @@ export function buildBackOfficeNav(role: UserRole): NavSection[] {
     });
   }
 
-  sections.push({ items: [{ to: "/profile", label: "My profile", icon: UserCircle }] });
+  sections.push({ items: [{ to: "/profile", label: "My Profile", icon: UserCircle }] });
 
   return sections;
 }

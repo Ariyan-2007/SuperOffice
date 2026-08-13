@@ -8,6 +8,7 @@ import { DataTable, type Column } from "../../components/DataTable";
 import { PageLoader, EmptyState, InfoBanner } from "../../components/Feedback";
 import { BusinessStatusBadge } from "../../components/Badge";
 import { formatDate } from "../../lib/format";
+import { formatCurrencyLabel, formatCurrencyShort } from "../../lib/currencies";
 import type { BusinessResponse } from "../../types/api";
 
 // No aggregate revenue/order stats endpoint exists yet (SUPEROFFICE_FRONTEND_BLUEPRINT.md §7)
@@ -22,7 +23,11 @@ export function SuperOfficeDashboardPage() {
   const columns: Column<BusinessResponse>[] = [
     { key: "name", header: "Business", render: (b) => <span style={{ fontWeight: 600 }}>{b.name}</span> },
     { key: "slug", header: "Slug", render: (b) => <span className="cell-mono cell-muted">{b.slug}</span> },
-    { key: "currency", header: "Currency", render: (b) => b.currency },
+    {
+      key: "currency",
+      header: "Currency",
+      render: (b) => <span title={formatCurrencyLabel(b.currency)}>{formatCurrencyShort(b.currency)}</span>,
+    },
     { key: "status", header: "Status", render: (b) => <BusinessStatusBadge status={b.status} /> },
     { key: "created", header: "Created", render: (b) => formatDate(b.createdAt) },
   ];
@@ -51,7 +56,7 @@ export function SuperOfficeDashboardPage() {
       {businesses && businesses.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="No businesses yet"
+          title="No Businesses Yet"
           description="Create your first Business to get started."
           action={
             <Button variant="primary" onClick={() => navigate("/businesses/new")} style={{ marginTop: 8 }}>

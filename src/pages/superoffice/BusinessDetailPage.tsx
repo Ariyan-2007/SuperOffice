@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Ban, CheckCircle2 } from "lucide-react";
@@ -8,11 +8,14 @@ import { ApiError } from "../../api/client";
 import { PageHeader } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { Field, Input, Textarea } from "../../components/Field";
+import { ColorInput } from "../../components/ColorPicker";
+import { CurrencyInput } from "../../components/CurrencyInput";
 import { Button } from "../../components/Button";
 import { PageLoader } from "../../components/Feedback";
 import { BusinessStatusBadge } from "../../components/Badge";
 import { ConfirmDialog } from "../../components/Modal";
 import { useToast } from "../../context/ToastContext";
+import { formatCurrencyLabel } from "../../lib/currencies";
 import type { BusinessStatus, UpdateBusinessRequest } from "../../types/api";
 
 export function BusinessDetailPage() {
@@ -31,8 +34,12 @@ export function BusinessDetailPage() {
     register,
     handleSubmit,
     reset,
+    control,
+    watch,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<UpdateBusinessRequest>();
+
+  const currencyValue = watch("currency");
 
   useEffect(() => {
     if (business) reset(business);
@@ -71,7 +78,7 @@ export function BusinessDetailPage() {
 
       <PageHeader
         title={business.name}
-        subtitle={`${business.slug} · ${business.currency}`}
+        subtitle={`${business.slug} · ${formatCurrencyLabel(business.currency)}`}
         actions={
           <>
             <BusinessStatusBadge status={business.status} />
@@ -91,20 +98,42 @@ export function BusinessDetailPage() {
         <CardBody>
           <form onSubmit={handleSubmit((v) => updateMutation.mutate(v))} className="section-stack">
             <div className="form-grid">
-              <Field label="Business name" error={errors.name?.message}>
+              <Field label="Business Name" error={errors.name?.message}>
                 <Input hasError={!!errors.name} {...register("name", { required: "Name is required" })} />
               </Field>
-              <Field label="Currency" error={errors.currency?.message}>
-                <Input hasError={!!errors.currency} {...register("currency", { required: "Currency is required" })} />
+              <Field
+                label="Currency"
+                error={errors.currency?.message}
+                hint={!errors.currency && currencyValue ? formatCurrencyLabel(currencyValue) : undefined}
+              >
+                <Controller
+                  control={control}
+                  name="currency"
+                  rules={{ required: "Currency is required" }}
+                  render={({ field }) => (
+                    <CurrencyInput
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      hasError={!!errors.currency}
+                    />
+                  )}
+                />
               </Field>
-              <Field label="Contact email" error={errors.contactEmail?.message}>
+              <Field label="Contact Email" error={errors.contactEmail?.message}>
                 <Input type="email" hasError={!!errors.contactEmail} {...register("contactEmail", { required: "Required" })} />
               </Field>
-              <Field label="Contact phone" error={errors.contactPhone?.message}>
+              <Field label="Contact Phone" error={errors.contactPhone?.message}>
                 <Input hasError={!!errors.contactPhone} {...register("contactPhone", { required: "Required" })} />
               </Field>
-              <Field label="Theme color" hint="Hex value used to brand this Business's BackOffice/Shop">
-                <Input {...register("themeColor")} />
+              <Field label="Theme Color" hint="Pick a color or paste a hex value used to brand this Business's BackOffice/Shop">
+                <Controller
+                  control={control}
+                  name="themeColor"
+                  render={({ field }) => (
+                    <ColorInput value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} />
+                  )}
+                />
               </Field>
               <Field label="Logo URL" optional>
                 <Input {...register("logoUrl")} />
@@ -130,7 +159,7 @@ export function BusinessDetailPage() {
 
       <ConfirmDialog
         open={!!confirmingStatus}
-        title={confirmingStatus === "Suspended" ? "Suspend business" : "Activate business"}
+        title={confirmingStatus === "Suspended" ? "Suspend Business" : "Activate Business"}
         description={
           confirmingStatus === "Suspended"
             ? "Suspending hides this Business's Shop and blocks its BackOffice logins. You can reactivate it anytime."

@@ -93,9 +93,9 @@ export function OrderDetailPage() {
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>Unit price</th>
+                    <th>Unit Price</th>
                     <th>Qty</th>
-                    <th>Line total</th>
+                    <th>Line Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,7 +120,7 @@ export function OrderDetailPage() {
                     <dd>−{formatMoney(order.discountAmount, currency)}</dd>
                   </>
                 )}
-                <dt>Delivery fee</dt>
+                <dt>Delivery Fee</dt>
                 <dd>{formatMoney(order.deliveryFee, currency)}</dd>
                 <dt style={{ fontWeight: 650, color: "var(--text)" }}>Total</dt>
                 <dd style={{ fontWeight: 650 }}>{formatMoney(order.total, currency)}</dd>
@@ -130,7 +130,7 @@ export function OrderDetailPage() {
 
           {order.shippingAddress && (
             <Card>
-              <CardHeader title="Shipping address" />
+              <CardHeader title="Shipping Address" />
               <CardBody>
                 <div style={{ fontSize: 13.5, lineHeight: 1.7 }}>
                   <div style={{ fontWeight: 600 }}>{order.shippingAddress.label}</div>
@@ -149,13 +149,13 @@ export function OrderDetailPage() {
 
         <div className="section-stack">
           <Card>
-            <CardHeader title="Update status" />
+            <CardHeader title="Update Status" />
             <CardBody>
               {options.length === 0 ? (
                 <p className="text-muted" style={{ fontSize: 13 }}>This order is in a final state.</p>
               ) : (
                 <div className="section-stack">
-                  <Field label="New status">
+                  <Field label="New Status">
                     <Select value={nextStatus} onChange={(e) => setNextStatus(e.target.value as OrderStatus)}>
                       <option value="">Choose…</option>
                       {options.map((s) => (
@@ -191,7 +191,7 @@ export function OrderDetailPage() {
                   <span className="text-muted">Assigned: </span>
                   {assignedAgent ? assignedAgent.fullName : order.deliveryAgentUserId ? order.deliveryAgentUserId.slice(0, 8) + "…" : "Unassigned"}
                 </div>
-                <Field label="Assign delivery agent">
+                <Field label="Assign Delivery Agent">
                   <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
                     <option value="">Choose an agent…</option>
                     {freeAgents.map((a) => {

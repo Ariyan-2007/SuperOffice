@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { businessApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
@@ -10,10 +10,13 @@ import { applyBrandColor } from "../../theme/color";
 import { PageHeader } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { Field, Input, Textarea } from "../../components/Field";
+import { ColorInput } from "../../components/ColorPicker";
+import { CurrencyInput } from "../../components/CurrencyInput";
 import { Button } from "../../components/Button";
 import { PageLoader, InfoBanner } from "../../components/Feedback";
 import { BusinessStatusBadge } from "../../components/Badge";
 import { useToast } from "../../context/ToastContext";
+import { formatCurrencyLabel } from "../../lib/currencies";
 import type { UpdateBusinessRequest } from "../../types/api";
 
 export function BusinessProfilePage() {
@@ -32,8 +35,12 @@ export function BusinessProfilePage() {
     register,
     handleSubmit,
     reset,
+    control,
+    watch,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<UpdateBusinessRequest>();
+
+  const currencyValue = watch("currency");
 
   useEffect(() => {
     if (business) reset(business);
@@ -54,8 +61,8 @@ export function BusinessProfilePage() {
   return (
     <div className="section-stack">
       <PageHeader
-        title="Business profile"
-        subtitle={`${business.slug} · ${business.currency}`}
+        title="Business Profile"
+        subtitle={`${business.slug} · ${formatCurrencyLabel(business.currency)}`}
         actions={<BusinessStatusBadge status={business.status} />}
       />
 
@@ -66,20 +73,48 @@ export function BusinessProfilePage() {
         <CardBody>
           <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="section-stack">
             <div className="form-grid">
-              <Field label="Business name" error={errors.name?.message}>
+              <Field label="Business Name" error={errors.name?.message}>
                 <Input disabled={!canEdit} hasError={!!errors.name} {...register("name", { required: "Name is required" })} />
               </Field>
-              <Field label="Currency" error={errors.currency?.message}>
-                <Input disabled={!canEdit} hasError={!!errors.currency} {...register("currency", { required: "Currency is required" })} />
+              <Field
+                label="Currency"
+                error={errors.currency?.message}
+                hint={!errors.currency && currencyValue ? formatCurrencyLabel(currencyValue) : undefined}
+              >
+                <Controller
+                  control={control}
+                  name="currency"
+                  rules={{ required: "Currency is required" }}
+                  render={({ field }) => (
+                    <CurrencyInput
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      disabled={!canEdit}
+                      hasError={!!errors.currency}
+                    />
+                  )}
+                />
               </Field>
-              <Field label="Contact email" error={errors.contactEmail?.message}>
+              <Field label="Contact Email" error={errors.contactEmail?.message}>
                 <Input disabled={!canEdit} type="email" hasError={!!errors.contactEmail} {...register("contactEmail", { required: "Required" })} />
               </Field>
-              <Field label="Contact phone" error={errors.contactPhone?.message}>
+              <Field label="Contact Phone" error={errors.contactPhone?.message}>
                 <Input disabled={!canEdit} hasError={!!errors.contactPhone} {...register("contactPhone", { required: "Required" })} />
               </Field>
-              <Field label="Theme color" hint="Hex value used to brand this deployment, e.g. #4338CA">
-                <Input disabled={!canEdit} type="text" {...register("themeColor")} />
+              <Field label="Theme Color" hint="Pick a color or paste a hex value, e.g. #4338CA">
+                <Controller
+                  control={control}
+                  name="themeColor"
+                  render={({ field }) => (
+                    <ColorInput
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      disabled={!canEdit}
+                    />
+                  )}
+                />
               </Field>
               <Field label="Logo URL" optional>
                 <Input disabled={!canEdit} {...register("logoUrl")} />

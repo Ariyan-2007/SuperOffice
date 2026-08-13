@@ -83,7 +83,7 @@ export function StaffPage() {
       />
 
       {staff && staff.length === 0 ? (
-        <EmptyState icon={UserCog} title="No staff accounts yet" description="Invite your team to help run this shop." />
+        <EmptyState icon={UserCog} title="No Staff Accounts Yet" description="Invite your team to help run this shop." />
       ) : (
         <DataTable columns={columns} rows={staff ?? []} rowKey={(u) => u.id} />
       )}
@@ -118,7 +118,7 @@ function StaffModal({
     <Modal
       open
       onClose={onClose}
-      title="New staff account"
+      title="New Staff Account"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -127,7 +127,7 @@ function StaffModal({
       }
     >
       <form className="section-stack" onSubmit={handleSubmit(onSubmit)}>
-        <Field label="Full name" error={errors.fullName?.message}>
+        <Field label="Full Name" error={errors.fullName?.message}>
           <Input hasError={!!errors.fullName} {...register("fullName", { required: "Full name is required" })} />
         </Field>
         <Field label="Email" error={errors.email?.message}>

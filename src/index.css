@@ -557,6 +557,99 @@ button {
   cursor: not-allowed;
 }
 
+.color-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-input-swatch {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.color-input-swatch::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+.color-input-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.color-input-swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.currency-input {
+  position: relative;
+}
+
+.currency-input-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.currency-input-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.currency-input-option:hover,
+.currency-input-option:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.currency-input-option-symbol {
+  flex: none;
+  width: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.currency-input-option-code {
+  flex: none;
+  font-weight: 650;
+}
+
+.currency-input-option-name {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;

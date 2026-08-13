@@ -15,7 +15,7 @@ export function TenantProfilePage() {
 
   return (
     <div className="section-stack">
-      <PageHeader title="Tenant profile" subtitle="Your subscription details." />
+      <PageHeader title="Tenant Profile" subtitle="Your subscription details." />
 
       <InfoBanner>
         There's no self-service editing for Tenant profile yet — this is read-only. Contact Vastora support for changes.
@@ -31,11 +31,11 @@ export function TenantProfilePage() {
             <dd>{tenant.type}</dd>
             <dt>Plan</dt>
             <dd>{tenant.plan}</dd>
-            <dt>Contact email</dt>
+            <dt>Contact Email</dt>
             <dd>{tenant.contactEmail}</dd>
-            <dt>Contact phone</dt>
+            <dt>Contact Phone</dt>
             <dd>{tenant.contactPhone}</dd>
-            <dt>Member since</dt>
+            <dt>Member Since</dt>
             <dd>{formatDate(tenant.createdAt)}</dd>
           </dl>
         </CardBody>

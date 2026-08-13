@@ -6,8 +6,8 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { APP_NAME } from "../config/env";
 
 const NAV = [
-  { to: "/", label: "My deliveries", icon: Package, end: true },
-  { to: "/status", label: "My status", icon: Truck },
+  { to: "/", label: "My Deliveries", icon: Package, end: true },
+  { to: "/status", label: "My Status", icon: Truck },
   { to: "/profile", label: "Profile", icon: UserIcon },
 ];
 

@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
@@ -7,8 +7,10 @@ import { ApiError } from "../../api/client";
 import { PageHeader } from "../../components/StatCard";
 import { Card } from "../../components/Card";
 import { Field, Input, Textarea } from "../../components/Field";
+import { CurrencyInput } from "../../components/CurrencyInput";
 import { Button } from "../../components/Button";
 import { useToast } from "../../context/ToastContext";
+import { formatCurrencyLabel } from "../../lib/currencies";
 import type { CreateBusinessRequest } from "../../types/api";
 
 interface CreateBusinessForm {
@@ -27,8 +29,12 @@ export function CreateBusinessPage() {
   const {
     register,
     handleSubmit,
+    control,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateBusinessForm>({ defaultValues: { currency: "USD" } });
+
+  const currencyValue = watch("currency");
 
   const mutation = useMutation({
     mutationFn: (data: CreateBusinessRequest) => superOfficeBusinessApi.create(data),
@@ -56,25 +62,31 @@ export function CreateBusinessPage() {
       <button className="btn btn-ghost btn-sm" onClick={() => navigate("/")} style={{ width: "fit-content" }}>
         <ArrowLeft size={13} /> Back to businesses
       </button>
-      <PageHeader title="New business" subtitle="Creates a new storefront under your Tenant." />
+      <PageHeader title="New Business" subtitle="Creates a new storefront under your Tenant." />
 
       <Card padded>
         <form onSubmit={onSubmit} className="section-stack">
           <div className="form-grid">
-            <Field label="Business name" error={errors.name?.message}>
+            <Field label="Business Name" error={errors.name?.message}>
               <Input hasError={!!errors.name} {...register("name", { required: "Name is required" })} />
             </Field>
             <Field label="Slug" optional hint="Leave blank to auto-generate from the name">
               <Input {...register("slug")} placeholder="antivaly" />
             </Field>
-            <Field label="Contact email" error={errors.contactEmail?.message}>
+            <Field label="Contact Email" error={errors.contactEmail?.message}>
               <Input type="email" hasError={!!errors.contactEmail} {...register("contactEmail", { required: "Required" })} />
             </Field>
-            <Field label="Contact phone" error={errors.contactPhone?.message}>
+            <Field label="Contact Phone" error={errors.contactPhone?.message}>
               <Input hasError={!!errors.contactPhone} {...register("contactPhone", { required: "Required" })} />
             </Field>
-            <Field label="Currency">
-              <Input {...register("currency")} placeholder="USD" />
+            <Field label="Currency" hint={currencyValue ? formatCurrencyLabel(currencyValue) : undefined}>
+              <Controller
+                control={control}
+                name="currency"
+                render={({ field }) => (
+                  <CurrencyInput value={field.value ?? ""} onChange={field.onChange} onBlur={field.onBlur} />
+                )}
+              />
             </Field>
             <Field label="Description" className="span-2">
               <Textarea rows={4} {...register("description")} />

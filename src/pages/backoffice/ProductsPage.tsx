@@ -184,9 +184,9 @@ export function ProductsPage() {
       </div>
 
       {!categories?.length ? (
-        <EmptyState icon={Package} title="Create a category first" description="Products need a category to belong to." />
+        <EmptyState icon={Package} title="Create A Category First" description="Products need a category to belong to." />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Package} title="No products" description="Try a different status filter, or create a new product." />
+        <EmptyState icon={Package} title="No Products" description="Try a different status filter, or create a new product." />
       ) : (
         <DataTable columns={columns} rows={filtered} rowKey={(p) => p.id} />
       )}
@@ -204,7 +204,7 @@ export function ProductsPage() {
 
       <ConfirmDialog
         open={!!deleting}
-        title="Delete product"
+        title="Delete Product"
         description={<>Delete <strong>{deleting?.name}</strong>? This can't be undone.</>}
         confirmLabel="Delete"
         danger
@@ -303,7 +303,7 @@ function ProductModal({
       open
       onClose={onClose}
       wide
-      title={product ? "Edit product" : "New product"}
+      title={product ? "Edit Product" : "New Product"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -329,13 +329,13 @@ function ProductModal({
           <Field label="Price" error={errors.price?.message}>
             <Input type="number" step="0.01" min="0" hasError={!!errors.price} {...register("price", { required: true, valueAsNumber: true, min: 0 })} />
           </Field>
-          <Field label="Compare-at price" optional>
+          <Field label="Compare-At Price" optional>
             <Input type="number" step="0.01" min="0" {...register("compareAtPrice")} />
           </Field>
-          <Field label="Stock quantity">
+          <Field label="Stock Quantity">
             <Input type="number" min="0" {...register("stockQuantity", { valueAsNumber: true, min: 0 })} />
           </Field>
-          <Field label="Track inventory">
+          <Field label="Track Inventory">
             <label className="checkbox-row" style={{ height: 38 }}>
               <input type="checkbox" {...register("trackInventory")} /> Reduce stock automatically on sale
             </label>

@@ -60,9 +60,9 @@ export function MyStatusPage() {
           <dl className="kv-grid">
             <dt>Level</dt>
             <dd>{agent.levelCode}</dd>
-            <dt>Completed deliveries</dt>
+            <dt>Completed Deliveries</dt>
             <dd>{agent.completedDeliveries}</dd>
-            <dt>Delivery charge</dt>
+            <dt>Delivery Charge</dt>
             <dd>{agent.deliveryCharge}</dd>
             <dt>Balance</dt>
             <dd>{agent.balance} <span className="text-muted">(payouts not yet implemented)</span></dd>
