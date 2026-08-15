@@ -1,21 +1,26 @@
 import { demoStore } from "./store";
 import type { DemoUserRecord } from "./seed";
 import type {
+  AdjustStockRequest,
   AssignDeliveryAgentRequest,
   AuthResponse,
   BusinessStatus,
   CreateBusinessRequest,
   CreateCategoryRequest,
   CreateCouponRequest,
+  CreateExpenseRequest,
   CreateProductRequest,
   CreateStaffRequest,
   DeliveryAgentStatus,
+  PaymentStatus,
   ProblemDetails,
   ProductStatus,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
+  UpdateExpenseRequest,
   UpdateOrderStatusRequest,
+  UpdatePaymentStatusRequest,
   UpdateProductRequest,
   UserStatus,
 } from "../types/api";
@@ -32,6 +37,7 @@ interface AuthCtx {
 
 interface HandlerCtx {
   params: Record<string, string>;
+  query: Record<string, string>;
   body: Record<string, unknown> | unknown;
   auth: AuthCtx | null;
 }
@@ -111,14 +117,46 @@ const routes: RouteDef[] = [
       return updated ? ok(updated) : fail(404, "Account not found.");
     },
   },
+  {
+    method: "POST",
+    path: "/api/auth/forgot-password",
+    auth: "none",
+    handler: ({ body }) => {
+      const b = body as { email?: string };
+      demoStore.requestPasswordReset(b.email ?? "");
+      return ok(undefined, 204);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/auth/reset-password",
+    auth: "none",
+    handler: ({ body }) => {
+      const b = body as { token?: string; newPassword?: string };
+      const success = demoStore.resetPassword(b.token ?? "", b.newPassword ?? "");
+      return success ? ok(undefined, 204) : fail(400, "This reset link is invalid or has expired.");
+    },
+  },
   { method: "GET", path: "/api/tenants/me", auth: "required", handler: () => ok(demoStore.getTenant()) },
+  { method: "GET", path: "/api/tenants/me/usage", auth: "required", handler: () => ok(demoStore.getTenantUsage()) },
+  { method: "GET", path: "/api/superoffice/analytics", auth: "required", handler: () => ok(demoStore.getAnalytics()) },
 
   { method: "GET", path: "/api/superoffice/businesses", auth: "required", handler: () => ok(demoStore.listBusinesses()) },
   {
     method: "POST",
     path: "/api/superoffice/businesses",
     auth: "required",
-    handler: ({ body }) => ok(demoStore.createBusiness(body as CreateBusinessRequest), 201),
+    handler: ({ body }) => {
+      const tenant = demoStore.getTenant();
+      const usage = demoStore.getTenantUsage();
+      if (tenant.type === "SingleBusiness" && usage.businessCount >= 1) {
+        return fail(409, "Your Tenant is on a Single-business plan. Upgrade to Multi-business to add another.");
+      }
+      if (usage.maxBusinesses != null && usage.businessCount >= usage.maxBusinesses) {
+        return fail(409, `Your '${usage.plan}' plan allows up to ${usage.maxBusinesses} Business(es). Upgrade your plan to add another.`);
+      }
+      return ok(demoStore.createBusiness(body as CreateBusinessRequest), 201);
+    },
   },
   {
     method: "GET",
@@ -175,6 +213,7 @@ const routes: RouteDef[] = [
   },
 
   { method: "GET", path: "/api/businesses/:businessId/categories", auth: "required", handler: ({ params }) => ok(demoStore.listCategories(params.businessId)) },
+  { method: "GET", path: "/api/businesses/:businessId/categories/tree", auth: "required", handler: ({ params }) => ok(demoStore.getCategoryTree(params.businessId)) },
   {
     method: "POST",
     path: "/api/businesses/:businessId/categories",
@@ -211,7 +250,13 @@ const routes: RouteDef[] = [
     method: "POST",
     path: "/api/businesses/:businessId/products",
     auth: "required",
-    handler: ({ params, body }) => ok(demoStore.createProduct(params.businessId, body as CreateProductRequest), 201),
+    handler: ({ params, body }) => {
+      const usage = demoStore.getTenantUsage().businesses.find((b) => b.businessId === params.businessId);
+      if (usage?.maxProductsPerBusiness != null && usage.productCount >= usage.maxProductsPerBusiness) {
+        return fail(409, `Your '${demoStore.getTenant().plan}' plan allows up to ${usage.maxProductsPerBusiness} product(s) per Business. Upgrade your plan to add more.`);
+      }
+      return ok(demoStore.createProduct(params.businessId, body as CreateProductRequest), 201);
+    },
   },
   {
     method: "GET",
@@ -245,6 +290,43 @@ const routes: RouteDef[] = [
     path: "/api/businesses/:businessId/products/:productId",
     auth: "required",
     handler: ({ params }) => (demoStore.removeProduct(params.businessId, params.productId) ? ok(undefined, 204) : fail(404, "Product not found.")),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/products/:productId/images",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { url?: string };
+      const product = demoStore.addProductImage(params.businessId, params.productId, b.url ?? "");
+      return product ? ok(product) : fail(404, "Product not found.");
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/products/:productId/stock-movements",
+    auth: "required",
+    handler: ({ params }) => ok(demoStore.listStockMovements(params.businessId, params.productId)),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/products/:productId/stock-adjustments",
+    auth: "required",
+    handler: ({ params, body, auth }) => {
+      const product = demoStore.adjustStock(params.businessId, params.productId, body as AdjustStockRequest, auth?.userId ?? null);
+      return product ? ok(product) : fail(404, "Product not found.");
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/inventory/low-stock",
+    auth: "required",
+    handler: ({ params }) => ok(demoStore.getLowStock(params.businessId)),
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/inventory/valuation",
+    auth: "required",
+    handler: ({ params }) => ok(demoStore.getValuation(params.businessId)),
   },
 
   { method: "GET", path: "/api/businesses/:businessId/coupons", auth: "required", handler: ({ params }) => ok(demoStore.listCoupons(params.businessId)) },
@@ -280,6 +362,10 @@ const routes: RouteDef[] = [
       if (demoStore.findUserByEmail(req.email)) return fail(409, "An account with this email already exists.");
       if (req.role === "DeliveryAgent" && !demoStore.getBusiness(params.businessId)?.deliveryModuleEnabled) {
         return fail(409, "Delivery module is disabled for this business.");
+      }
+      const usage = demoStore.getTenantUsage().businesses.find((b) => b.businessId === params.businessId);
+      if (usage?.maxStaffPerBusiness != null && usage.staffCount >= usage.maxStaffPerBusiness) {
+        return fail(409, `Your '${demoStore.getTenant().plan}' plan allows up to ${usage.maxStaffPerBusiness} staff member(s) per Business. Upgrade your plan to add more.`);
       }
       return ok(demoStore.createStaff(params.businessId, req), 201);
     },
@@ -348,7 +434,19 @@ const routes: RouteDef[] = [
     path: "/api/businesses/:businessId/orders/:orderId/status",
     auth: "required",
     handler: ({ params, body }) => {
-      const order = demoStore.setOrderStatus(params.businessId, params.orderId, body as UpdateOrderStatusRequest);
+      const result = demoStore.setOrderStatus(params.businessId, params.orderId, body as UpdateOrderStatusRequest);
+      if (!result) return fail(404, "Order not found.");
+      if ("error" in result) return fail(409, result.error);
+      return ok(result);
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/businesses/:businessId/orders/:orderId/payment-status",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as UpdatePaymentStatusRequest;
+      const order = demoStore.setPaymentStatus(params.businessId, params.orderId, b.status as PaymentStatus, b.note ?? null);
       return order ? ok(order) : fail(404, "Order not found.");
     },
   },
@@ -364,6 +462,41 @@ const routes: RouteDef[] = [
       const order = demoStore.assignDelivery(params.businessId, params.orderId, b.deliveryAgentUserId);
       return order ? ok(order) : fail(404, "Order not found.");
     },
+  },
+
+  { method: "GET", path: "/api/businesses/:businessId/expenses", auth: "required", handler: ({ params }) => ok(demoStore.listExpenses(params.businessId)) },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/expenses",
+    auth: "required",
+    handler: ({ params, body, auth }) => ok(demoStore.createExpense(params.businessId, body as CreateExpenseRequest, auth!.userId), 201),
+  },
+  {
+    method: "PUT",
+    path: "/api/businesses/:businessId/expenses/:expenseId",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const expense = demoStore.updateExpense(params.businessId, params.expenseId, body as UpdateExpenseRequest);
+      return expense ? ok(expense) : fail(404, "Expense not found.");
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/expenses/:expenseId",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removeExpense(params.businessId, params.expenseId) ? ok(undefined, 204) : fail(404, "Expense not found.")),
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/accounting/profit-and-loss",
+    auth: "required",
+    handler: ({ params, query }) => ok(demoStore.getProfitAndLoss(params.businessId, query.from ?? "", query.to ?? "")),
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/accounting/balance-sheet",
+    auth: "required",
+    handler: ({ params }) => ok(demoStore.getBalanceSheet(params.businessId)),
   },
 ];
 

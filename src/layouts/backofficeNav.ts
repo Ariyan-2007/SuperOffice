@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, FolderTree, LayoutDashboard, Package, Ticket, Truck, UserCircle, UserCog, Users } from "lucide-react";
+import { Boxes, Building2, ClipboardList, FolderTree, LayoutDashboard, Package, Receipt, Ticket, Truck, UserCircle, UserCog, Users } from "lucide-react";
 import type { NavSection } from "./Sidebar";
 import { ADMIN_LEVEL } from "../routes/backofficeRoles";
 import type { UserRole } from "../types/api";
@@ -13,6 +13,7 @@ export function buildBackOfficeNav(role: UserRole): NavSection[] {
         { to: "/categories", label: "Categories", icon: FolderTree },
         { to: "/products", label: "Products", icon: Package },
         { to: "/coupons", label: "Coupons", icon: Ticket },
+        { to: "/inventory", label: "Inventory", icon: Boxes },
       ],
     },
     {
@@ -31,6 +32,10 @@ export function buildBackOfficeNav(role: UserRole): NavSection[] {
         { to: "/staff", label: "Staff", icon: UserCog },
         { to: "/customers", label: "Customers", icon: Users },
       ],
+    });
+    sections.push({
+      label: "Finance",
+      items: [{ to: "/accounting", label: "Accounting", icon: Receipt }],
     });
   }
 

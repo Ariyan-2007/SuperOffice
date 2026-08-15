@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2, History } from "lucide-react";
 import { deliveryAgentApi, orderApi, staffApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
@@ -17,7 +17,7 @@ import { PageLoader } from "../../components/Feedback";
 import { OrderStatusBadge, PaymentStatusBadge } from "../../components/Badge";
 import { formatDateTime, formatMoney } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
-import type { OrderStatus } from "../../types/api";
+import type { OrderResponse, OrderStatus } from "../../types/api";
 
 export function OrderDetailPage() {
   const { orderId = "" } = useParams();
@@ -60,6 +60,16 @@ export function OrderDetailPage() {
     onError: (err) => notify(err instanceof ApiError ? err.message : "Could not assign delivery agent.", "error"),
   });
 
+  const paymentMutation = useMutation({
+    mutationFn: () => orderApi.setPaymentStatus(businessId, orderId, { status: "Paid", note: "Marked paid from BackOffice." }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["order", businessId, orderId], updated);
+      queryClient.invalidateQueries({ queryKey: ["orders", businessId] });
+      notify("Order marked as paid.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not update payment status.", "error"),
+  });
+
   if (isLoading || !order) return <PageLoader />;
 
   const nameOf = (userId: string) => (staff ?? []).find((s) => s.id === userId);
@@ -80,6 +90,11 @@ export function OrderDetailPage() {
           <>
             <PaymentStatusBadge status={order.paymentStatus} />
             <OrderStatusBadge status={order.status} />
+            {order.paymentStatus === "Pending" && (
+              <Button variant="secondary" loading={paymentMutation.isPending} onClick={() => paymentMutation.mutate()}>
+                <CheckCircle2 size={14} /> Mark as Paid
+              </Button>
+            )}
           </>
         }
       />
@@ -145,6 +160,13 @@ export function OrderDetailPage() {
               </CardBody>
             </Card>
           )}
+
+          <Card>
+            <CardHeader title="History" actions={<History size={15} color="var(--text-faint)" />} />
+            <CardBody>
+              <OrderTimeline order={order} />
+            </CardBody>
+          </Card>
         </div>
 
         <div className="section-stack">
@@ -226,6 +248,49 @@ export function OrderDetailPage() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+// statusHistory/paymentStatusHistory are now backend-provided (BACKOFFICE_FRONTEND_BLUEPRINT.md
+// §7.8, added 2026-08-15) — merge the two event streams into one chronological timeline.
+function OrderTimeline({ order }: { order: OrderResponse }) {
+  const events = [
+    ...order.statusHistory.map((e) => ({ kind: "status" as const, status: e.status, timestamp: e.timestamp, note: e.note })),
+    ...order.paymentStatusHistory.map((e) => ({ kind: "payment" as const, status: e.status, timestamp: e.timestamp, note: e.note })),
+  ].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
+
+  if (events.length === 0) {
+    return <p className="text-muted" style={{ fontSize: 13 }}>No history recorded yet.</p>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {events.map((e, i) => (
+        <div key={i} style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                marginTop: 5,
+                background: e.kind === "payment" ? "var(--info)" : "var(--brand-500)",
+                flexShrink: 0,
+              }}
+            />
+            {i < events.length - 1 && <div style={{ width: 1, flex: 1, background: "var(--border)", marginTop: 4 }} />}
+          </div>
+          <div style={{ paddingBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              {e.kind === "payment" ? "Payment → " : "Status → "}
+              {e.status}
+            </div>
+            <div className="text-muted" style={{ fontSize: 11.5 }}>{formatDateTime(e.timestamp)}</div>
+            {e.note && <div style={{ fontSize: 12.5, marginTop: 3 }}>{e.note}</div>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

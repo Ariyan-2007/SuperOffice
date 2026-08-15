@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Info } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { ApiError } from "../../api/client";
@@ -71,6 +71,9 @@ export function LoginPage() {
       <Button type="submit" variant="primary" loading={isSubmitting} style={{ width: "100%", marginTop: 4 }}>
         Sign in
       </Button>
+      <Link to="/forgot-password" style={{ fontSize: 12.5, textAlign: "center" }}>
+        Forgot password?
+      </Link>
     </form>
   );
 }

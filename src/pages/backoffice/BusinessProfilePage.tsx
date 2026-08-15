@@ -131,6 +131,18 @@ export function BusinessProfilePage() {
               <Field label="Banner URL" optional className="span-2">
                 <Input disabled={!canEdit} {...register("bannerUrl")} />
               </Field>
+              <Field
+                label="Default Delivery Fee"
+                hint="Flat fee the Shop falls back to at checkout when a delivery fee isn't otherwise specified."
+              >
+                <Input
+                  disabled={!canEdit}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register("defaultDeliveryFee", { valueAsNumber: true, min: 0 })}
+                />
+              </Field>
               <Field label="Description" className="span-2">
                 <Textarea disabled={!canEdit} rows={4} {...register("description")} />
               </Field>

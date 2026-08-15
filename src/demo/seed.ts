@@ -5,8 +5,10 @@ import type {
   CategoryResponse,
   CouponResponse,
   DeliveryAgentResponse,
+  ExpenseResponse,
   OrderResponse,
   ProductResponse,
+  StockMovementResponse,
   TenantResponse,
   UserRole,
   UserStatus,
@@ -33,6 +35,8 @@ export interface DemoData {
   coupons: CouponResponse[];
   deliveryAgents: DeliveryAgentResponse[];
   orders: OrderResponse[];
+  stockMovements: StockMovementResponse[];
+  expenses: ExpenseResponse[];
 }
 
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
@@ -77,6 +81,7 @@ export function buildSeed(): DemoData {
       contactPhone: "+1 555 0101",
       status: "Active",
       deliveryModuleEnabled: true,
+      defaultDeliveryFee: 2.99,
       createdAt: daysAgo(150),
     },
     {
@@ -94,6 +99,7 @@ export function buildSeed(): DemoData {
       contactPhone: "+1 555 0102",
       status: "Draft",
       deliveryModuleEnabled: false,
+      defaultDeliveryFee: 0,
       createdAt: daysAgo(12),
     },
     {
@@ -111,6 +117,7 @@ export function buildSeed(): DemoData {
       contactPhone: "+1 555 0103",
       status: "Suspended",
       deliveryModuleEnabled: true,
+      defaultDeliveryFee: 3.5,
       createdAt: daysAgo(90),
     },
   ];
@@ -214,14 +221,29 @@ export function buildSeed(): DemoData {
   ];
 
   const products: ProductResponse[] = [
-    { id: "p-1", businessId: BIZ_1, categoryId: "c-produce", name: "Organic Avocado (each)", slug: "organic-avocado", sku: "PRD-AVO-01", description: "Ripe Hass avocados, sourced weekly.", price: 1.5, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 1.5, stockQuantity: 84, trackInventory: true, images: [], tags: ["fresh", "organic"], status: "Active" },
-    { id: "p-2", businessId: BIZ_1, categoryId: "c-produce", name: "Heirloom Tomatoes (lb)", slug: "heirloom-tomatoes", sku: "PRD-TOM-02", description: "Locally grown heirloom tomatoes.", price: 3.25, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 3.25, stockQuantity: 4, trackInventory: true, images: [], tags: ["fresh"], status: "Active" },
-    { id: "p-3", businessId: BIZ_1, categoryId: "c-bakery", name: "Sourdough Loaf", slug: "sourdough-loaf", sku: "PRD-BRD-01", description: "24-hour fermented sourdough, baked daily.", price: 6.5, compareAtPrice: 8, discountPercent: null, discountExpiresAt: null, effectivePrice: 6.5, stockQuantity: 11, trackInventory: true, images: [], tags: ["bestseller"], status: "Active" },
-    { id: "p-4", businessId: BIZ_1, categoryId: "c-bakery", name: "Butter Croissant (pack of 4)", slug: "butter-croissant-4pk", sku: "PRD-CRO-01", description: "Flaky, all-butter croissants.", price: 7.0, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 7.0, stockQuantity: 0, trackInventory: true, images: [], tags: [], status: "OutOfStock" },
-    { id: "p-5", businessId: BIZ_1, categoryId: "c-beverages", name: "Cold Brew Concentrate (32oz)", slug: "cold-brew-concentrate", sku: "PRD-CBC-01", description: "Small-batch cold brew, makes 4 servings.", price: 12.0, compareAtPrice: 15, discountPercent: 20, discountExpiresAt: daysAgo(-14), effectivePrice: 9.6, stockQuantity: 26, trackInventory: true, images: [], tags: ["featured"], status: "Active" },
-    { id: "p-6", businessId: BIZ_1, categoryId: "c-beverages", name: "Sparkling Water 12-pack", slug: "sparkling-water-12pk", sku: "PRD-SPW-01", description: "Unflavored sparkling mineral water.", price: 8.99, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 8.99, stockQuantity: 3, trackInventory: true, images: [], tags: [], status: "Active" },
-    { id: "p-7", businessId: BIZ_1, categoryId: "c-snacks", name: "Trail Mix (16oz)", slug: "trail-mix-16oz", sku: "PRD-TMX-01", description: "Nuts, seeds and dried fruit blend.", price: 9.5, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 9.5, stockQuantity: 40, trackInventory: true, images: [], tags: ["snack"], status: "Active" },
-    { id: "p-8", businessId: BIZ_1, categoryId: "c-snacks", name: "Dark Chocolate Bar (85%)", slug: "dark-chocolate-85", sku: "PRD-CHC-01", description: "Single-origin dark chocolate.", price: 4.25, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 4.25, stockQuantity: 60, trackInventory: false, images: [], tags: [], status: "Draft" },
+    { id: "p-1", businessId: BIZ_1, categoryId: "c-produce", name: "Organic Avocado (each)", slug: "organic-avocado", sku: "PRD-AVO-01", description: "Ripe Hass avocados, sourced weekly.", price: 1.5, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 1.5, stockQuantity: 84, trackInventory: true, reorderThreshold: 20, reorderQuantity: 100, images: [], tags: ["fresh", "organic"], status: "Active", variants: [] },
+    { id: "p-2", businessId: BIZ_1, categoryId: "c-produce", name: "Heirloom Tomatoes (lb)", slug: "heirloom-tomatoes", sku: "PRD-TOM-02", description: "Locally grown heirloom tomatoes.", price: 3.25, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 3.25, stockQuantity: 4, trackInventory: true, reorderThreshold: 10, reorderQuantity: 50, images: [], tags: ["fresh"], status: "Active", variants: [] },
+    { id: "p-3", businessId: BIZ_1, categoryId: "c-bakery", name: "Sourdough Loaf", slug: "sourdough-loaf", sku: "PRD-BRD-01", description: "24-hour fermented sourdough, baked daily.", price: 6.5, compareAtPrice: 8, discountPercent: null, discountExpiresAt: null, effectivePrice: 6.5, stockQuantity: 11, trackInventory: true, reorderThreshold: null, reorderQuantity: null, images: [], tags: ["bestseller"], status: "Active", variants: [] },
+    { id: "p-4", businessId: BIZ_1, categoryId: "c-bakery", name: "Butter Croissant (pack of 4)", slug: "butter-croissant-4pk", sku: "PRD-CRO-01", description: "Flaky, all-butter croissants.", price: 7.0, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 7.0, stockQuantity: 0, trackInventory: true, reorderThreshold: 5, reorderQuantity: 30, images: [], tags: [], status: "OutOfStock", variants: [] },
+    { id: "p-5", businessId: BIZ_1, categoryId: "c-beverages", name: "Cold Brew Concentrate (32oz)", slug: "cold-brew-concentrate", sku: "PRD-CBC-01", description: "Small-batch cold brew, makes 4 servings.", price: 12.0, compareAtPrice: 15, discountPercent: 20, discountExpiresAt: daysAgo(-14), effectivePrice: 9.6, stockQuantity: 26, trackInventory: true, reorderThreshold: null, reorderQuantity: null, images: [], tags: ["featured"], status: "Active", variants: [] },
+    { id: "p-6", businessId: BIZ_1, categoryId: "c-beverages", name: "Sparkling Water 12-pack", slug: "sparkling-water-12pk", sku: "PRD-SPW-01", description: "Unflavored sparkling mineral water.", price: 8.99, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 8.99, stockQuantity: 3, trackInventory: true, reorderThreshold: 8, reorderQuantity: 24, images: [], tags: [], status: "Active", variants: [] },
+    { id: "p-7", businessId: BIZ_1, categoryId: "c-snacks", name: "Trail Mix (16oz)", slug: "trail-mix-16oz", sku: "PRD-TMX-01", description: "Nuts, seeds and dried fruit blend.", price: 9.5, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 9.5, stockQuantity: 40, trackInventory: true, reorderThreshold: null, reorderQuantity: null, images: [], tags: ["snack"], status: "Active", variants: [
+      { id: "pv-1", attributeSummary: "Size: Small", sku: "PRD-TMX-01-S", priceOverride: null, stockQuantity: 18 },
+      { id: "pv-2", attributeSummary: "Size: Large", sku: "PRD-TMX-01-L", priceOverride: 14.5, stockQuantity: 22 },
+    ] },
+    { id: "p-8", businessId: BIZ_1, categoryId: "c-snacks", name: "Dark Chocolate Bar (85%)", slug: "dark-chocolate-85", sku: "PRD-CHC-01", description: "Single-origin dark chocolate.", price: 4.25, compareAtPrice: null, discountPercent: null, discountExpiresAt: null, effectivePrice: 4.25, stockQuantity: 60, trackInventory: false, reorderThreshold: null, reorderQuantity: null, images: [], tags: [], status: "Draft", variants: [] },
+  ];
+
+  const stockMovements: StockMovementResponse[] = [
+    { id: "sm-1", productId: "p-2", type: "Sale", quantityDelta: -6, reason: "Order VAS-20260809-0006", referenceOrderId: "o-6", createdByUserId: null, createdAt: daysAgo(6) },
+    { id: "sm-2", productId: "p-2", type: "Restock", quantityDelta: 10, reason: "Weekly produce delivery", referenceOrderId: null, createdByUserId: "u-admin", createdAt: daysAgo(3) },
+    { id: "sm-3", productId: "p-6", type: "DamageWriteOff", quantityDelta: -2, reason: "Cracked bottles from delivery", referenceOrderId: null, createdByUserId: "u-staff", createdAt: daysAgo(1) },
+  ];
+
+  const expenses: ExpenseResponse[] = [
+    { id: "exp-1", businessId: BIZ_1, category: "Rent", amount: 2400, note: "Storefront monthly rent", incurredAt: daysAgo(20), createdByUserId: "u-admin" },
+    { id: "exp-2", businessId: BIZ_1, category: "Supplies", amount: 186.4, note: "Packaging and bags", incurredAt: daysAgo(9), createdByUserId: "u-admin" },
+    { id: "exp-3", businessId: BIZ_1, category: "Utilities", amount: 310.75, note: "Electricity and water", incurredAt: daysAgo(4), createdByUserId: "u-admin" },
   ];
 
   const coupons: CouponResponse[] = [
@@ -257,13 +279,75 @@ export function buildSeed(): DemoData {
   const items6 = [{ productId: "p-2", productName: "Heirloom Tomatoes (lb)", unitPrice: 3.25, quantity: 2, lineTotal: 6.5 }];
 
   const orders: OrderResponse[] = [
-    { id: "o-1", businessId: BIZ_1, orderNumber: "VAS-20260810-0001", customerUserId: "u-cust-1", items: items1, subtotal: 9.0, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 11.99, status: "Delivered", paymentStatus: "Paid", shippingAddress: address("Home", "San Francisco"), deliveryAgentUserId: "u-agent-1", placedAt: daysAgo(5) },
-    { id: "o-2", businessId: BIZ_1, orderNumber: "VAS-20260812-0002", customerUserId: "u-cust-2", items: items2, subtotal: 22.6, couponCode: "WELCOME10", discountAmount: 2.26, deliveryFee: 2.99, total: 23.33, status: "OutForDelivery", paymentStatus: "Paid", shippingAddress: address("Home", "Oakland"), deliveryAgentUserId: "u-agent-2", placedAt: hoursAgo(6) },
-    { id: "o-3", businessId: BIZ_1, orderNumber: "VAS-20260813-0003", customerUserId: "u-cust-3", items: items3, subtotal: 28.5, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 31.49, status: "Confirmed", paymentStatus: "Paid", shippingAddress: address("Work", "San Francisco"), deliveryAgentUserId: null, placedAt: hoursAgo(20) },
-    { id: "o-4", businessId: BIZ_1, orderNumber: "VAS-20260814-0004", customerUserId: "u-cust-1", items: items4, subtotal: 17.98, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 20.97, status: "Processing", paymentStatus: "Paid", shippingAddress: address("Home", "San Francisco"), deliveryAgentUserId: null, placedAt: hoursAgo(9) },
-    { id: "o-5", businessId: BIZ_1, orderNumber: "VAS-20260814-0005", customerUserId: "u-cust-2", items: items5, subtotal: 17.0, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 19.99, status: "PendingPayment", paymentStatus: "Pending", shippingAddress: address("Home", "Oakland"), deliveryAgentUserId: null, placedAt: hoursAgo(2) },
-    { id: "o-6", businessId: BIZ_1, orderNumber: "VAS-20260809-0006", customerUserId: "u-cust-3", items: items6, subtotal: 6.5, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 9.49, status: "Cancelled", paymentStatus: "Refunded", shippingAddress: address("Work", "San Francisco"), deliveryAgentUserId: null, placedAt: daysAgo(6) },
+    {
+      id: "o-1", businessId: BIZ_1, orderNumber: "VAS-20260810-0001", customerUserId: "u-cust-1", items: items1, subtotal: 9.0, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 11.99, status: "Delivered", paymentStatus: "Paid", shippingAddress: address("Home", "San Francisco"), deliveryAgentUserId: "u-agent-1", placedAt: daysAgo(5),
+      statusHistory: [
+        { status: "PendingPayment", timestamp: daysAgo(5), note: "Order placed." },
+        { status: "Processing", timestamp: hoursAgo(118), note: "" },
+        { status: "Confirmed", timestamp: hoursAgo(100), note: "" },
+        { status: "OutForDelivery", timestamp: hoursAgo(80), note: "" },
+        { status: "Delivered", timestamp: hoursAgo(60), note: "Handed to customer." },
+      ],
+      paymentStatusHistory: [
+        { status: "Pending", timestamp: daysAgo(5), note: "" },
+        { status: "Paid", timestamp: hoursAgo(119), note: "" },
+      ],
+    },
+    {
+      id: "o-2", businessId: BIZ_1, orderNumber: "VAS-20260812-0002", customerUserId: "u-cust-2", items: items2, subtotal: 22.6, couponCode: "WELCOME10", discountAmount: 2.26, deliveryFee: 2.99, total: 23.33, status: "OutForDelivery", paymentStatus: "Paid", shippingAddress: address("Home", "Oakland"), deliveryAgentUserId: "u-agent-2", placedAt: hoursAgo(6),
+      statusHistory: [
+        { status: "PendingPayment", timestamp: hoursAgo(6), note: "Order placed." },
+        { status: "Processing", timestamp: hoursAgo(5.5), note: "" },
+        { status: "Confirmed", timestamp: hoursAgo(4), note: "" },
+        { status: "OutForDelivery", timestamp: hoursAgo(1), note: "Assigned to Tomas Rivera." },
+      ],
+      paymentStatusHistory: [
+        { status: "Pending", timestamp: hoursAgo(6), note: "" },
+        { status: "Paid", timestamp: hoursAgo(5.5), note: "" },
+      ],
+    },
+    {
+      id: "o-3", businessId: BIZ_1, orderNumber: "VAS-20260813-0003", customerUserId: "u-cust-3", items: items3, subtotal: 28.5, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 31.49, status: "Confirmed", paymentStatus: "Paid", shippingAddress: address("Work", "San Francisco"), deliveryAgentUserId: null, placedAt: hoursAgo(20),
+      statusHistory: [
+        { status: "PendingPayment", timestamp: hoursAgo(20), note: "Order placed." },
+        { status: "Processing", timestamp: hoursAgo(19), note: "" },
+        { status: "Confirmed", timestamp: hoursAgo(15), note: "" },
+      ],
+      paymentStatusHistory: [
+        { status: "Pending", timestamp: hoursAgo(20), note: "" },
+        { status: "Paid", timestamp: hoursAgo(19), note: "" },
+      ],
+    },
+    {
+      id: "o-4", businessId: BIZ_1, orderNumber: "VAS-20260814-0004", customerUserId: "u-cust-1", items: items4, subtotal: 17.98, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 20.97, status: "Processing", paymentStatus: "Paid", shippingAddress: address("Home", "San Francisco"), deliveryAgentUserId: null, placedAt: hoursAgo(9),
+      statusHistory: [
+        { status: "PendingPayment", timestamp: hoursAgo(9), note: "Order placed." },
+        { status: "Processing", timestamp: hoursAgo(8.5), note: "" },
+      ],
+      paymentStatusHistory: [
+        { status: "Pending", timestamp: hoursAgo(9), note: "" },
+        { status: "Paid", timestamp: hoursAgo(8.5), note: "" },
+      ],
+    },
+    {
+      id: "o-5", businessId: BIZ_1, orderNumber: "VAS-20260814-0005", customerUserId: "u-cust-2", items: items5, subtotal: 17.0, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 19.99, status: "PendingPayment", paymentStatus: "Pending", shippingAddress: address("Home", "Oakland"), deliveryAgentUserId: null, placedAt: hoursAgo(2),
+      statusHistory: [{ status: "PendingPayment", timestamp: hoursAgo(2), note: "Order placed." }],
+      paymentStatusHistory: [{ status: "Pending", timestamp: hoursAgo(2), note: "" }],
+    },
+    {
+      id: "o-6", businessId: BIZ_1, orderNumber: "VAS-20260809-0006", customerUserId: "u-cust-3", items: items6, subtotal: 6.5, couponCode: null, discountAmount: 0, deliveryFee: 2.99, total: 9.49, status: "Cancelled", paymentStatus: "Refunded", shippingAddress: address("Work", "San Francisco"), deliveryAgentUserId: null, placedAt: daysAgo(6),
+      statusHistory: [
+        { status: "PendingPayment", timestamp: daysAgo(6), note: "Order placed." },
+        { status: "Processing", timestamp: hoursAgo(140), note: "" },
+        { status: "Cancelled", timestamp: hoursAgo(130), note: "Customer requested cancellation." },
+      ],
+      paymentStatusHistory: [
+        { status: "Pending", timestamp: daysAgo(6), note: "" },
+        { status: "Paid", timestamp: hoursAgo(141), note: "" },
+        { status: "Refunded", timestamp: hoursAgo(130), note: "Refunded on cancellation." },
+      ],
+    },
   ];
 
-  return { tenant, businesses, users, categories, products, coupons, deliveryAgents, orders };
+  return { tenant, businesses, users, categories, products, coupons, deliveryAgents, orders, stockMovements, expenses };
 }

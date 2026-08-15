@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ClipboardList, PackageSearch, Ticket } from "lucide-react";
-import { productApi, categoryApi, couponApi, orderApi } from "../../api/endpoints";
+import { productApi, categoryApi, couponApi, orderApi, inventoryApi, accountingApi } from "../../api/endpoints";
 import { useBusinessId } from "../../context/useBusinessId";
 import { useBusiness } from "../../context/BusinessContext";
 import { useAuth } from "../../auth/AuthContext";
+import { ADMIN_LEVEL } from "../../routes/backofficeRoles";
 import { PageHeader, StatCard } from "../../components/StatCard";
 import { PageLoader } from "../../components/Feedback";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -11,25 +12,33 @@ import { OrderStatusBadge } from "../../components/Badge";
 import { formatDateTime, formatMoney } from "../../lib/format";
 import { Link } from "react-router-dom";
 
-// No aggregate stats endpoint exists on the backend (BACKOFFICE_FRONTEND_BLUEPRINT.md §8) —
-// every number here is computed client-side from list responses the other pages already fetch.
+// Low-stock count and a trailing-30-days net profit figure are now real requests
+// (BACKOFFICE_FRONTEND_BLUEPRINT.md §8, updated 2026-08-15) rather than computed client-side.
+// Staff can't hit the Admin-tier accounting endpoint, so they only see low-stock + order counts.
 export function DashboardPage() {
   const businessId = useBusinessId();
   const { business } = useBusiness();
   const { user } = useAuth();
+  const canSeeAccounting = ADMIN_LEVEL.includes(user!.role);
 
   const products = useQuery({ queryKey: ["products", businessId], queryFn: () => productApi.list(businessId) });
   const categories = useQuery({ queryKey: ["categories", businessId], queryFn: () => categoryApi.list(businessId) });
   const coupons = useQuery({ queryKey: ["coupons", businessId], queryFn: () => couponApi.list(businessId) });
   const orders = useQuery({ queryKey: ["orders", businessId], queryFn: () => orderApi.list(businessId) });
+  const lowStock = useQuery({ queryKey: ["inventory-low-stock", businessId], queryFn: () => inventoryApi.lowStock(businessId) });
+  const pnl = useQuery({
+    queryKey: ["pnl-30d", businessId],
+    queryFn: () => accountingApi.profitAndLoss(businessId, new Date(Date.now() - 30 * 86_400_000).toISOString(), new Date().toISOString()),
+    enabled: canSeeAccounting,
+  });
 
-  if (products.isLoading || categories.isLoading || coupons.isLoading || orders.isLoading) return <PageLoader />;
+  if (products.isLoading || categories.isLoading || coupons.isLoading || orders.isLoading || lowStock.isLoading) return <PageLoader />;
 
-  const lowStock = (products.data ?? []).filter((p) => p.trackInventory && p.stockQuantity <= 5);
   const activeProducts = (products.data ?? []).filter((p) => p.status === "Active");
   const activeCoupons = (coupons.data ?? []).filter((c) => c.isActive);
   const openOrders = (orders.data ?? []).filter((o) => !["Delivered", "Cancelled", "Refunded"].includes(o.status));
   const recentOrders = [...(orders.data ?? [])].sort((a, b) => +new Date(b.placedAt) - +new Date(a.placedAt)).slice(0, 6);
+  const lowStockItems = lowStock.data ?? [];
 
   return (
     <div className="section-stack">
@@ -40,10 +49,17 @@ export function DashboardPage() {
         <StatCard label="Active Products" value={activeProducts.length} meta={`${products.data?.length ?? 0} total`} />
         <StatCard
           label="Low Stock"
-          value={lowStock.length}
-          meta={lowStock.length ? "≤ 5 units remaining" : "All stocked"}
+          value={lowStockItems.length}
+          meta={lowStockItems.length ? "At or below reorder threshold" : "All stocked"}
         />
-        <StatCard label="Active Coupons" value={activeCoupons.length} meta={`${categories.data?.length ?? 0} categories`} />
+        {canSeeAccounting ? (
+          <StatCard
+            label="Net Profit (30d)"
+            value={pnl.data ? formatMoney(pnl.data.netProfit, business?.currency ?? "USD") : "—"}
+          />
+        ) : (
+          <StatCard label="Active Coupons" value={activeCoupons.length} meta={`${categories.data?.length ?? 0} categories`} />
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
@@ -91,13 +107,13 @@ export function DashboardPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 620, fontSize: 13.5 }}>
               <AlertTriangle size={15} color="var(--warning)" /> Needs attention
             </div>
-            {lowStock.length === 0 && activeCoupons.some((c) => new Date(c.expiresAt) > new Date()) === false && (
+            {lowStockItems.length === 0 && activeCoupons.length === 0 && (
               <div className="text-muted" style={{ fontSize: 13 }}>Nothing urgent right now.</div>
             )}
-            {lowStock.slice(0, 4).map((p) => (
-              <Link key={p.id} to="/products" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "var(--text)" }}>
+            {lowStockItems.slice(0, 4).map((p) => (
+              <Link key={p.productId} to="/inventory" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "var(--text)" }}>
                 <PackageSearch size={14} color="var(--text-faint)" />
-                <span style={{ flex: 1 }}>{p.name}</span>
+                <span style={{ flex: 1 }}>{p.productName}</span>
                 <span className="text-muted">{p.stockQuantity} left</span>
               </Link>
             ))}

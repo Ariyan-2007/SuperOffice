@@ -10,6 +10,7 @@ const STATUS_TONE = { PendingSetup: "warning", Active: "success", Suspended: "da
 
 export function TenantProfilePage() {
   const { data: tenant, isLoading } = useQuery({ queryKey: ["tenant-me"], queryFn: () => tenantApi.me() });
+  const { data: usage } = useQuery({ queryKey: ["tenant-usage"], queryFn: () => tenantApi.usage() });
 
   if (isLoading || !tenant) return <PageLoader />;
 
@@ -40,6 +41,37 @@ export function TenantProfilePage() {
           </dl>
         </CardBody>
       </Card>
+
+      {usage && (
+        <Card>
+          <CardHeader title="Plan Usage" />
+          <CardBody style={{ padding: 0 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Business</th>
+                  <th>Staff</th>
+                  <th>Products</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usage.businesses.map((b) => (
+                  <tr key={b.businessId}>
+                    <td style={{ fontWeight: 600 }}>{b.businessName}</td>
+                    <td>{b.staffCount}{b.maxStaffPerBusiness != null ? ` / ${b.maxStaffPerBusiness}` : " (unlimited)"}</td>
+                    <td>{b.productCount}{b.maxProductsPerBusiness != null ? ` / ${b.maxProductsPerBusiness}` : " (unlimited)"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardBody>
+          <CardBody style={{ borderTop: "1px solid var(--border)" }}>
+            <span className="text-muted" style={{ fontSize: 12.5 }}>
+              Businesses: {usage.businessCount}{usage.maxBusinesses != null ? ` / ${usage.maxBusinesses}` : " (unlimited)"} on the {usage.plan} plan.
+            </span>
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 }

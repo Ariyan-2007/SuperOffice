@@ -6,10 +6,12 @@ import { couponApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
 import { useBusiness } from "../../context/BusinessContext";
+import { useAuth } from "../../auth/AuthContext";
+import { ADMIN_LEVEL } from "../../routes/backofficeRoles";
 import { PageHeader } from "../../components/StatCard";
 import { Button } from "../../components/Button";
 import { DataTable, type Column } from "../../components/DataTable";
-import { PageLoader, EmptyState } from "../../components/Feedback";
+import { PageLoader, EmptyState, InfoBanner } from "../../components/Feedback";
 import { Badge } from "../../components/Badge";
 import { Modal, ConfirmDialog } from "../../components/Modal";
 import { Field, Input, Select } from "../../components/Field";
@@ -31,8 +33,10 @@ interface CouponForm {
 export function CouponsPage() {
   const businessId = useBusinessId();
   const { business } = useBusiness();
+  const { user } = useAuth();
   const { notify } = useToast();
   const queryClient = useQueryClient();
+  const canManage = ADMIN_LEVEL.includes(user!.role);
   const [editing, setEditing] = useState<CouponResponse | "new" | null>(null);
   const [deleting, setDeleting] = useState<CouponResponse | null>(null);
 
@@ -87,20 +91,24 @@ export function CouponsPage() {
         return <Badge tone={!c.isActive ? "neutral" : expired ? "danger" : "success"}>{!c.isActive ? "Inactive" : expired ? "Expired" : "Active"}</Badge>;
       },
     },
-    {
-      key: "actions",
-      header: "",
-      render: (c) => (
-        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-          <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
-            <Pencil size={13} />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setDeleting(c)} style={{ color: "var(--danger)" }}>
-            <Trash2 size={13} />
-          </Button>
-        </div>
-      ),
-    },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            header: "",
+            render: (c: CouponResponse) => (
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                  <Pencil size={13} />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDeleting(c)} style={{ color: "var(--danger)" }}>
+                  <Trash2 size={13} />
+                </Button>
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   if (isLoading) return <PageLoader />;
@@ -111,11 +119,15 @@ export function CouponsPage() {
         title="Coupons"
         subtitle="Codes are always stored uppercase — shown here exactly as customers must type them."
         actions={
-          <Button variant="primary" onClick={() => setEditing("new")}>
-            <Plus size={14} /> New coupon
-          </Button>
+          canManage ? (
+            <Button variant="primary" onClick={() => setEditing("new")}>
+              <Plus size={14} /> New coupon
+            </Button>
+          ) : undefined
         }
       />
+
+      {!canManage && <InfoBanner>Coupons directly control discounts — only a Business admin can create, edit or delete them here.</InfoBanner>}
 
       {coupons && coupons.length === 0 ? (
         <EmptyState icon={Ticket} title="No Coupons Yet" description="Create a discount code for customers to use at checkout." />
@@ -123,7 +135,7 @@ export function CouponsPage() {
         <DataTable columns={columns} rows={coupons ?? []} rowKey={(c) => c.id} />
       )}
 
-      {editing && (
+      {editing && canManage && (
         <CouponModal
           coupon={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}

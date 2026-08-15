@@ -151,6 +151,12 @@ export function BusinessDetailPage() {
               <Field label="Banner URL" optional className="span-2">
                 <Input {...register("bannerUrl")} />
               </Field>
+              <Field
+                label="Default Delivery Fee"
+                hint="Flat fee the Shop falls back to at checkout when a delivery fee isn't otherwise specified."
+              >
+                <Input type="number" step="0.01" min="0" {...register("defaultDeliveryFee", { valueAsNumber: true, min: 0 })} />
+              </Field>
               <Field label="Description" className="span-2">
                 <Textarea rows={4} {...register("description")} />
               </Field>

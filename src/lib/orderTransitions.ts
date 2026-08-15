@@ -1,21 +1,21 @@
 import type { OrderStatus } from "../types/api";
 
-// No order-status state machine is enforced server-side yet (BACKOFFICE_FRONTEND_BLUEPRINT.md
-// §7.8) — any allowed caller can set any status on any order. This only decides which
-// transitions the UI *offers*; it isn't a guarantee the API will reject anything else.
-const FORWARD: Partial<Record<OrderStatus, OrderStatus>> = {
-  PendingPayment: "Confirmed",
-  Processing: "Confirmed",
-  Confirmed: "OutForDelivery",
-  OutForDelivery: "Delivered",
+// A real order-status state machine is now enforced server-side (BACKOFFICE_FRONTEND_
+// BLUEPRINT.md §7.8, changed 2026-08-15) — an illegal jump now gets a 409 naming the
+// from/to states. This table is a genuine backend guarantee to mirror, not just a UI
+// convention: PendingPayment→Processing/Cancelled, Processing→Confirmed/OutForDelivery/
+// Cancelled, Confirmed→OutForDelivery/Cancelled, OutForDelivery→Delivered/Cancelled,
+// Delivered→Refunded only. Cancelled/Refunded are terminal.
+const LEGAL_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PendingPayment: ["Processing", "Cancelled"],
+  Processing: ["Confirmed", "OutForDelivery", "Cancelled"],
+  Confirmed: ["OutForDelivery", "Cancelled"],
+  OutForDelivery: ["Delivered", "Cancelled"],
+  Delivered: ["Refunded"],
+  Cancelled: [],
+  Refunded: [],
 };
 
-const CANCELLABLE_FROM: OrderStatus[] = ["PendingPayment", "Processing", "Confirmed", "OutForDelivery"];
-
 export function nextStatusOptions(current: OrderStatus): OrderStatus[] {
-  const options: OrderStatus[] = [];
-  const forward = FORWARD[current];
-  if (forward) options.push(forward);
-  if (CANCELLABLE_FROM.includes(current)) options.push("Cancelled");
-  return options;
+  return LEGAL_TRANSITIONS[current];
 }
