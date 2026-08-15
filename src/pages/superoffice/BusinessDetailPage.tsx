@@ -3,7 +3,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Ban, CheckCircle2 } from "lucide-react";
-import { superOfficeBusinessApi } from "../../api/endpoints";
+import { businessApi, superOfficeBusinessApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { PageHeader } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -64,6 +64,16 @@ export function BusinessDetailPage() {
       setConfirmingStatus(null);
     },
     onError: (err) => notify(err instanceof ApiError ? err.message : "Could not change status.", "error"),
+  });
+
+  const deliveryModuleMutation = useMutation({
+    mutationFn: (enabled: boolean) => businessApi.setDeliveryModule(businessId, enabled),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["so-business", businessId], updated);
+      queryClient.invalidateQueries({ queryKey: ["so-businesses"] });
+      notify(updated.deliveryModuleEnabled ? "Delivery module enabled." : "Delivery module disabled.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not update the delivery module.", "error"),
   });
 
   if (isLoading || !business) return <PageLoader />;
@@ -154,6 +164,26 @@ export function BusinessDetailPage() {
               </Button>
             </div>
           </form>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Delivery" />
+        <CardBody>
+          <label className="checkbox-row" style={{ height: 38 }}>
+            <input
+              type="checkbox"
+              checked={business.deliveryModuleEnabled}
+              disabled={deliveryModuleMutation.isPending}
+              onChange={(e) => deliveryModuleMutation.mutate(e.target.checked)}
+            />
+            Delivery agent workflow enabled
+          </label>
+          <p className="text-muted" style={{ fontSize: 12.5, marginTop: 8, lineHeight: 1.6 }}>
+            Turn this off for pickup-only shops or ones using a third-party courier. Existing delivery agents and
+            any order already assigned to one are unaffected — this only blocks adding new delivery agents and
+            assigning new deliveries.
+          </p>
         </CardBody>
       </Card>
 

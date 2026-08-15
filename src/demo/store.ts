@@ -126,6 +126,7 @@ class DemoStore {
       contactEmail: data.contactEmail,
       contactPhone: data.contactPhone,
       status: "Draft",
+      deliveryModuleEnabled: true,
       createdAt: new Date().toISOString(),
     };
     this.data.businesses.push(business);
@@ -145,6 +146,14 @@ class DemoStore {
     const business = this.getBusiness(id);
     if (!business) return null;
     business.status = status;
+    this.persist();
+    return business;
+  }
+
+  setDeliveryModule(id: string, enabled: boolean): BusinessResponse | null {
+    const business = this.getBusiness(id);
+    if (!business) return null;
+    business.deliveryModuleEnabled = enabled;
     this.persist();
     return business;
   }

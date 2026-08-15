@@ -191,28 +191,36 @@ export function OrderDetailPage() {
                   <span className="text-muted">Assigned: </span>
                   {assignedAgent ? assignedAgent.fullName : order.deliveryAgentUserId ? order.deliveryAgentUserId.slice(0, 8) + "…" : "Unassigned"}
                 </div>
-                <Field label="Assign Delivery Agent">
-                  <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-                    <option value="">Choose an agent…</option>
-                    {freeAgents.map((a) => {
-                      const info = nameOf(a.userId);
-                      return (
-                        <option key={a.id} value={a.userId}>
-                          {info ? info.fullName : a.userId.slice(0, 8) + "…"} ({a.status})
-                        </option>
-                      );
-                    })}
-                  </Select>
-                </Field>
-                <Button
-                  variant="secondary"
-                  disabled={!assigneeId}
-                  loading={assignMutation.isPending}
-                  onClick={() => assigneeId && assignMutation.mutate(assigneeId)}
-                  style={{ width: "100%" }}
-                >
-                  Assign
-                </Button>
+                {business?.deliveryModuleEnabled ? (
+                  <>
+                    <Field label="Assign Delivery Agent">
+                      <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+                        <option value="">Choose an agent…</option>
+                        {freeAgents.map((a) => {
+                          const info = nameOf(a.userId);
+                          return (
+                            <option key={a.id} value={a.userId}>
+                              {info ? info.fullName : a.userId.slice(0, 8) + "…"} ({a.status})
+                            </option>
+                          );
+                        })}
+                      </Select>
+                    </Field>
+                    <Button
+                      variant="secondary"
+                      disabled={!assigneeId}
+                      loading={assignMutation.isPending}
+                      onClick={() => assigneeId && assignMutation.mutate(assigneeId)}
+                      style={{ width: "100%" }}
+                    >
+                      Assign
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-muted" style={{ fontSize: 12.5 }}>
+                    Delivery module is disabled for this Business — enable it in Business Profile to assign new deliveries.
+                  </p>
+                )}
               </div>
             </CardBody>
           </Card>

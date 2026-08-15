@@ -76,6 +76,7 @@ export function buildSeed(): DemoData {
       contactEmail: "hello@antivaly-demo.test",
       contactPhone: "+1 555 0101",
       status: "Active",
+      deliveryModuleEnabled: true,
       createdAt: daysAgo(150),
     },
     {
@@ -92,6 +93,7 @@ export function buildSeed(): DemoData {
       contactEmail: "hello@northwind-demo.test",
       contactPhone: "+1 555 0102",
       status: "Draft",
+      deliveryModuleEnabled: false,
       createdAt: daysAgo(12),
     },
     {
@@ -108,6 +110,7 @@ export function buildSeed(): DemoData {
       contactEmail: "hello@cedarsage-demo.test",
       contactPhone: "+1 555 0103",
       status: "Suspended",
+      deliveryModuleEnabled: true,
       createdAt: daysAgo(90),
     },
   ];

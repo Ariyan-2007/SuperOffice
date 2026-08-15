@@ -83,6 +83,10 @@ export const businessApi = {
   get: (businessId: string) => http.get<BusinessResponse>(`/api/businesses/${businessId}`).then((r) => r.data),
   update: (businessId: string, data: UpdateBusinessRequest) =>
     http.put<BusinessResponse>(`/api/businesses/${businessId}`, data).then((r) => r.data),
+  // Shared route, not under /superoffice/ — but a TenantOwner's JWT works here too, so
+  // SuperOffice's Business detail page calls this same function.
+  setDeliveryModule: (businessId: string, enabled: boolean) =>
+    http.patch<BusinessResponse>(`/api/businesses/${businessId}/delivery-module`, { enabled }).then((r) => r.data),
 };
 
 // ---------- categories ----------

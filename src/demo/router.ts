@@ -163,6 +163,16 @@ const routes: RouteDef[] = [
       return business ? ok(business) : fail(404, "Business not found.");
     },
   },
+  {
+    method: "PATCH",
+    path: "/api/businesses/:businessId/delivery-module",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { enabled: boolean };
+      const business = demoStore.setDeliveryModule(params.businessId, b.enabled);
+      return business ? ok(business) : fail(404, "Business not found.");
+    },
+  },
 
   { method: "GET", path: "/api/businesses/:businessId/categories", auth: "required", handler: ({ params }) => ok(demoStore.listCategories(params.businessId)) },
   {
@@ -268,6 +278,9 @@ const routes: RouteDef[] = [
     handler: ({ params, body }) => {
       const req = body as CreateStaffRequest;
       if (demoStore.findUserByEmail(req.email)) return fail(409, "An account with this email already exists.");
+      if (req.role === "DeliveryAgent" && !demoStore.getBusiness(params.businessId)?.deliveryModuleEnabled) {
+        return fail(409, "Delivery module is disabled for this business.");
+      }
       return ok(demoStore.createStaff(params.businessId, req), 201);
     },
   },
@@ -344,6 +357,9 @@ const routes: RouteDef[] = [
     path: "/api/businesses/:businessId/orders/:orderId/assign-delivery",
     auth: "required",
     handler: ({ params, body }) => {
+      if (!demoStore.getBusiness(params.businessId)?.deliveryModuleEnabled) {
+        return fail(409, "Delivery module is disabled for this business.");
+      }
       const b = body as AssignDeliveryAgentRequest;
       const order = demoStore.assignDelivery(params.businessId, params.orderId, b.deliveryAgentUserId);
       return order ? ok(order) : fail(404, "Order not found.");
