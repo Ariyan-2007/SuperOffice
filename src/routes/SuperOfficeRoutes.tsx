@@ -4,6 +4,8 @@ import { buildSuperOfficeNav } from "../layouts/superofficeNav";
 import { AppLayout } from "../layouts/AppLayout";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { LoginPage } from "../pages/shared/LoginPage";
+import { ForgotPasswordPage } from "../pages/shared/ForgotPasswordPage";
+import { ResetPasswordPage } from "../pages/shared/ResetPasswordPage";
 import { ProfilePage } from "../pages/shared/ProfilePage";
 import { SuperOfficeDashboardPage } from "../pages/superoffice/DashboardPage";
 import { TenantProfilePage } from "../pages/superoffice/TenantProfilePage";
@@ -21,6 +23,26 @@ export function SuperOfficeRoutes() {
           <GuestOnly>
             <AuthLayout brandName="Vastora" tagline="Tenant control panel">
               <LoginPage />
+            </AuthLayout>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <GuestOnly>
+            <AuthLayout brandName="Vastora" tagline="Tenant control panel">
+              <ForgotPasswordPage />
+            </AuthLayout>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <GuestOnly>
+            <AuthLayout brandName="Vastora" tagline="Tenant control panel">
+              <ResetPasswordPage />
             </AuthLayout>
           </GuestOnly>
         }

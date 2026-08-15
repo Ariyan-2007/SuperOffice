@@ -9,26 +9,29 @@ import { AppRouter } from "./routes/AppRouter";
 import { assertConfigured } from "./config/env";
 import { MisconfiguredScreen } from "./pages/shared/MisconfiguredScreen";
 import { DemoModeProvider } from "./demo/DemoModeContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   const configError = assertConfigured();
   if (configError) return <MisconfiguredScreen message={configError} />;
 
   return (
-    <ThemeModeProvider>
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <BrowserRouter>
-            <DemoModeProvider>
-              <BusinessProvider>
-                <AuthProvider>
-                  <AppRouter />
-                </AuthProvider>
-              </BusinessProvider>
-            </DemoModeProvider>
-          </BrowserRouter>
-        </ToastProvider>
-      </QueryClientProvider>
-    </ThemeModeProvider>
+    <ErrorBoundary>
+      <ThemeModeProvider>
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <BrowserRouter>
+              <DemoModeProvider>
+                <BusinessProvider>
+                  <AuthProvider>
+                    <AppRouter />
+                  </AuthProvider>
+                </BusinessProvider>
+              </DemoModeProvider>
+            </BrowserRouter>
+          </ToastProvider>
+        </QueryClientProvider>
+      </ThemeModeProvider>
+    </ErrorBoundary>
   );
 }

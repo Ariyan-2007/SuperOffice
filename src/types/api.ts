@@ -63,6 +63,7 @@ export interface BusinessResponse {
   contactPhone: string;
   status: BusinessStatus;
   deliveryModuleEnabled: boolean;
+  defaultDeliveryFee: number;
   createdAt: string;
 }
 
@@ -84,6 +85,7 @@ export interface UpdateBusinessRequest {
   contactEmail: string;
   contactPhone: string;
   currency: string;
+  defaultDeliveryFee: number;
 }
 
 export interface CategoryResponse {
@@ -115,7 +117,35 @@ export interface UpdateCategoryRequest {
   isActive: boolean;
 }
 
+export interface CategoryTreeNode {
+  id: string;
+  businessId: string;
+  name: string;
+  slug: string;
+  description: string;
+  imageUrl: string;
+  sortOrder: number;
+  isActive: boolean;
+  children: CategoryTreeNode[];
+}
+
 export type ProductStatus = "Draft" | "Active" | "OutOfStock" | "Archived";
+
+export interface ProductVariantResponse {
+  id: string;
+  attributeSummary: string;
+  sku: string;
+  priceOverride: number | null;
+  stockQuantity: number;
+}
+
+export interface ProductVariantRequest {
+  id?: string | null;
+  attributeSummary: string;
+  sku: string;
+  priceOverride: number | null;
+  stockQuantity: number;
+}
 
 export interface ProductResponse {
   id: string;
@@ -132,9 +162,12 @@ export interface ProductResponse {
   effectivePrice: number;
   stockQuantity: number;
   trackInventory: boolean;
+  reorderThreshold: number | null;
+  reorderQuantity: number | null;
   images: string[];
   tags: string[];
   status: ProductStatus;
+  variants: ProductVariantResponse[];
 }
 
 export interface CreateProductRequest {
@@ -149,6 +182,7 @@ export interface CreateProductRequest {
   trackInventory: boolean;
   images?: string[] | null;
   tags?: string[] | null;
+  variants?: ProductVariantRequest[] | null;
 }
 
 export interface UpdateProductRequest {
@@ -159,10 +193,12 @@ export interface UpdateProductRequest {
   compareAtPrice?: number | null;
   discountPercent?: number | null;
   discountExpiresAt?: string | null;
-  stockQuantity: number;
   trackInventory: boolean;
+  reorderThreshold?: number | null;
+  reorderQuantity?: number | null;
   images: string[];
   tags: string[];
+  variants?: ProductVariantRequest[] | null;
 }
 
 export type DiscountType = "Percentage" | "FixedAmount";
@@ -249,6 +285,18 @@ export interface ShippingAddress {
   isDefault: boolean;
 }
 
+export interface OrderStatusEventResponse {
+  status: OrderStatus;
+  timestamp: string;
+  note: string;
+}
+
+export interface PaymentStatusEventResponse {
+  status: PaymentStatus;
+  timestamp: string;
+  note: string;
+}
+
 export interface OrderResponse {
   id: string;
   businessId: string;
@@ -264,6 +312,8 @@ export interface OrderResponse {
   paymentStatus: PaymentStatus;
   shippingAddress: ShippingAddress | null;
   deliveryAgentUserId: string | null;
+  statusHistory: OrderStatusEventResponse[];
+  paymentStatusHistory: PaymentStatusEventResponse[];
   placedAt: string;
 }
 
@@ -272,8 +322,136 @@ export interface UpdateOrderStatusRequest {
   note: string;
 }
 
+export interface UpdatePaymentStatusRequest {
+  status: PaymentStatus;
+  note?: string | null;
+}
+
 export interface AssignDeliveryAgentRequest {
   deliveryAgentUserId: string;
+}
+
+// ---------- inventory (added 2026-08-15) ----------
+
+export type StockMovementType = "Sale" | "Restock" | "Return" | "Adjustment" | "DamageWriteOff";
+
+export interface StockMovementResponse {
+  id: string;
+  productId: string;
+  type: StockMovementType;
+  quantityDelta: number;
+  reason: string;
+  referenceOrderId: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+}
+
+export interface AdjustStockRequest {
+  quantityDelta: number;
+  reason: string;
+  type: "Restock" | "Adjustment" | "DamageWriteOff";
+}
+
+export interface LowStockProductResponse {
+  productId: string;
+  productName: string;
+  sku: string;
+  stockQuantity: number;
+  reorderThreshold: number;
+  reorderQuantity: number | null;
+}
+
+export interface CategoryValuationEntry {
+  categoryId: string;
+  value: number;
+}
+
+export interface InventoryValuationResponse {
+  totalValue: number;
+  byCategory: CategoryValuationEntry[];
+}
+
+// ---------- accounting (added 2026-08-15, Admin-tier only) ----------
+
+export interface ExpenseResponse {
+  id: string;
+  businessId: string;
+  category: string;
+  amount: number;
+  note: string;
+  incurredAt: string;
+  createdByUserId: string;
+}
+
+export interface CreateExpenseRequest {
+  category: string;
+  amount: number;
+  note: string;
+  incurredAt: string;
+}
+
+export interface UpdateExpenseRequest {
+  category: string;
+  amount: number;
+  note: string;
+  incurredAt: string;
+}
+
+export interface ProfitAndLossResponse {
+  from: string;
+  to: string;
+  revenue: number;
+  refunds: number;
+  expenses: number;
+  deliveryPayouts: number;
+  netProfit: number;
+}
+
+export interface BalanceSheetResponse {
+  cashPosition: number;
+  inventoryValue: number;
+  totalAssets: number;
+}
+
+// ---------- tenant usage (added 2026-08-15, SuperOffice) ----------
+
+export interface BusinessUsageEntry {
+  businessId: string;
+  businessName: string;
+  staffCount: number;
+  maxStaffPerBusiness: number | null;
+  productCount: number;
+  maxProductsPerBusiness: number | null;
+}
+
+export interface TenantUsageResponse {
+  plan: TenantPlan;
+  businessCount: number;
+  maxBusinesses: number | null;
+  businesses: BusinessUsageEntry[];
+}
+
+// ---------- analytics (added 2026-08-15, SuperOffice) ----------
+
+export interface BusinessAnalyticsEntry {
+  businessId: string;
+  businessName: string;
+  orderCount: number;
+  revenue: number;
+}
+
+export interface TopProductStat {
+  productId: string;
+  productName: string;
+  quantitySold: number;
+  revenue: number;
+}
+
+export interface TenantAnalyticsResponse {
+  totalRevenue: number;
+  totalOrders: number;
+  businesses: BusinessAnalyticsEntry[];
+  topProducts: TopProductStat[];
 }
 
 export interface ProblemDetails {

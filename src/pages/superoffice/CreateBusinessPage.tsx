@@ -71,7 +71,7 @@ export function CreateBusinessPage() {
               <Input hasError={!!errors.name} {...register("name", { required: "Name is required" })} />
             </Field>
             <Field label="Slug" optional hint="Leave blank to auto-generate from the name">
-              <Input {...register("slug")} placeholder="antivaly" />
+              <Input {...register("slug")} placeholder="vastora" />
             </Field>
             <Field label="Contact Email" error={errors.contactEmail?.message}>
               <Input type="email" hasError={!!errors.contactEmail} {...register("contactEmail", { required: "Required" })} />

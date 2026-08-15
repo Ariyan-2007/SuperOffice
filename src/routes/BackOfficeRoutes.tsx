@@ -10,12 +10,16 @@ import { DeliveryAgentLayout } from "../layouts/DeliveryAgentLayout";
 import { PageLoader } from "../components/Feedback";
 import { MisconfiguredScreen } from "../pages/shared/MisconfiguredScreen";
 import { LoginPage } from "../pages/shared/LoginPage";
+import { ForgotPasswordPage } from "../pages/shared/ForgotPasswordPage";
+import { ResetPasswordPage } from "../pages/shared/ResetPasswordPage";
 import { ProfilePage } from "../pages/shared/ProfilePage";
 import { DashboardPage } from "../pages/backoffice/DashboardPage";
 import { BusinessProfilePage } from "../pages/backoffice/BusinessProfilePage";
 import { CategoriesPage } from "../pages/backoffice/CategoriesPage";
 import { ProductsPage } from "../pages/backoffice/ProductsPage";
 import { CouponsPage } from "../pages/backoffice/CouponsPage";
+import { InventoryPage } from "../pages/backoffice/InventoryPage";
+import { AccountingPage } from "../pages/backoffice/AccountingPage";
 import { StaffPage } from "../pages/backoffice/StaffPage";
 import { CustomersPage } from "../pages/backoffice/CustomersPage";
 import { DeliveryAgentsPage } from "../pages/backoffice/DeliveryAgentsPage";
@@ -38,6 +42,26 @@ export function BackOfficeRoutes() {
           <GuestOnly>
             <AuthLayout brandName={business.name} logoUrl={business.logoUrl}>
               <LoginPage />
+            </AuthLayout>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <GuestOnly>
+            <AuthLayout brandName={business.name} logoUrl={business.logoUrl}>
+              <ForgotPasswordPage />
+            </AuthLayout>
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <GuestOnly>
+            <AuthLayout brandName={business.name} logoUrl={business.logoUrl}>
+              <ResetPasswordPage />
             </AuthLayout>
           </GuestOnly>
         }
@@ -99,6 +123,22 @@ function AuthenticatedBackOffice({ businessName, logoUrl }: { businessName: stri
           element={
             <RoleRoute allow={STAFF_LEVEL} userRole={user.role}>
               <CouponsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="inventory"
+          element={
+            <RoleRoute allow={STAFF_LEVEL} userRole={user.role}>
+              <InventoryPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="accounting"
+          element={
+            <RoleRoute allow={ADMIN_LEVEL} userRole={user.role}>
+              <AccountingPage />
             </RoleRoute>
           }
         />

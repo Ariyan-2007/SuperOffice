@@ -7,6 +7,12 @@ const MAX_DELAY_MS = 420;
 
 function parseBody(data: unknown): unknown {
   if (data == null) return {};
+  if (typeof FormData !== "undefined" && data instanceof FormData) {
+    const file = data.get("file");
+    // The real API stores the upload and returns its own URL; the demo backend has nowhere
+    // to persist a file, so an object URL stands in as "the server's generated filename".
+    return { url: file instanceof File ? URL.createObjectURL(file) : "" };
+  }
   if (typeof data === "string") {
     if (data.trim() === "") return {};
     try {
@@ -70,7 +76,14 @@ export const demoAdapter: AxiosAdapter = (config) =>
           }
         }
 
-        const result = match.route.handler({ params: match.params, body: parseBody(config.data), auth });
+        const query: Record<string, string> = {};
+        if (config.params && typeof config.params === "object") {
+          for (const [key, value] of Object.entries(config.params as Record<string, unknown>)) {
+            if (value != null) query[key] = String(value);
+          }
+        }
+
+        const result = match.route.handler({ params: match.params, query, body: parseBody(config.data), auth });
         if (result.status >= 200 && result.status < 300) {
           resolve(buildResponse(config, result.status, result.data));
         } else {

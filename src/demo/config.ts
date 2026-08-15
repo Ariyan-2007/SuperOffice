@@ -3,6 +3,11 @@
 // with data that resets on demand, never a real account.
 export const DEMO_PASSWORD = "Showcase@123";
 
+// Shown in place of a Business logo only while Showcase mode is active — every seeded Business
+// leaves logoUrl empty, and there's no real backend to upload a real one to. Stored the same
+// way a real Business's logo would be: one static asset per Business under public/businesses.
+export const DEMO_LOGO_URL = "/businesses/Vastora/Vastora-Logo.svg";
+
 export const DEMO_EMAILS = {
   owner: "owner@showcase.vastora.dev",
   admin: "admin@showcase.vastora.dev",

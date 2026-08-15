@@ -5,25 +5,38 @@ import { API_BASE_URL } from "../config/env";
 import { isDemoMode } from "../demo/state";
 import { demoStore } from "../demo/store";
 import type {
+  AdjustStockRequest,
   AssignDeliveryAgentRequest,
   AuthResponse,
+  BalanceSheetResponse,
   BusinessResponse,
   CategoryResponse,
+  CategoryTreeNode,
   CouponResponse,
   CreateBusinessRequest,
   CreateCategoryRequest,
   CreateCouponRequest,
+  CreateExpenseRequest,
   CreateProductRequest,
   CreateStaffRequest,
   DeliveryAgentResponse,
   DeliveryAgentStatus,
+  ExpenseResponse,
+  InventoryValuationResponse,
+  LowStockProductResponse,
   OrderResponse,
   ProductResponse,
+  ProfitAndLossResponse,
+  StockMovementResponse,
+  TenantAnalyticsResponse,
   TenantResponse,
+  TenantUsageResponse,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
+  UpdateExpenseRequest,
   UpdateOrderStatusRequest,
+  UpdatePaymentStatusRequest,
   UpdateProductRequest,
   UserSummaryResponse,
 } from "../types/api";
@@ -55,12 +68,22 @@ export const authApi = {
   logout: (refreshToken: string) => http.post<void>("/api/auth/logout", { refreshToken }).then((r) => r.data),
   me: () => http.get<UserSummaryResponse>("/api/auth/me").then((r) => r.data),
   updateMe: (data: { fullName: string; phone: string }) => http.put<UserSummaryResponse>("/api/auth/me", data).then((r) => r.data),
+  forgotPassword: (email: string) => http.post<void>("/api/auth/forgot-password", { email }).then((r) => r.data),
+  resetPassword: (token: string, newPassword: string) =>
+    http.post<void>("/api/auth/reset-password", { token, newPassword }).then((r) => r.data),
 };
 
 // ---------- tenant (SuperOffice) ----------
 
 export const tenantApi = {
   me: () => http.get<TenantResponse>("/api/tenants/me").then((r) => r.data),
+  usage: () => http.get<TenantUsageResponse>("/api/tenants/me/usage").then((r) => r.data),
+};
+
+// ---------- superoffice analytics ----------
+
+export const analyticsApi = {
+  get: () => http.get<TenantAnalyticsResponse>("/api/superoffice/analytics").then((r) => r.data),
 };
 
 // ---------- superoffice businesses ----------
@@ -93,6 +116,7 @@ export const businessApi = {
 
 export const categoryApi = {
   list: (businessId: string) => http.get<CategoryResponse[]>(`/api/businesses/${businessId}/categories`).then((r) => r.data),
+  tree: (businessId: string) => http.get<CategoryTreeNode[]>(`/api/businesses/${businessId}/categories/tree`).then((r) => r.data),
   get: (businessId: string, categoryId: string) =>
     http.get<CategoryResponse>(`/api/businesses/${businessId}/categories/${categoryId}`).then((r) => r.data),
   create: (businessId: string, data: CreateCategoryRequest) =>
@@ -119,6 +143,46 @@ export const productApi = {
     }).then((r) => r.data),
   remove: (businessId: string, productId: string) =>
     http.delete<void>(`/api/businesses/${businessId}/products/${productId}`).then((r) => r.data),
+  uploadImage: (businessId: string, productId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<ProductResponse>(`/api/businesses/${businessId}/products/${productId}/images`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
+};
+
+// ---------- inventory ----------
+
+export const inventoryApi = {
+  stockMovements: (businessId: string, productId: string) =>
+    http.get<StockMovementResponse[]>(`/api/businesses/${businessId}/products/${productId}/stock-movements`).then((r) => r.data),
+  adjustStock: (businessId: string, productId: string, data: AdjustStockRequest) =>
+    http.post<ProductResponse>(`/api/businesses/${businessId}/products/${productId}/stock-adjustments`, data).then((r) => r.data),
+  lowStock: (businessId: string) =>
+    http.get<LowStockProductResponse[]>(`/api/businesses/${businessId}/inventory/low-stock`).then((r) => r.data),
+  valuation: (businessId: string) =>
+    http.get<InventoryValuationResponse>(`/api/businesses/${businessId}/inventory/valuation`).then((r) => r.data),
+};
+
+// ---------- accounting (Admin-tier only) ----------
+
+export const accountingApi = {
+  listExpenses: (businessId: string) => http.get<ExpenseResponse[]>(`/api/businesses/${businessId}/expenses`).then((r) => r.data),
+  createExpense: (businessId: string, data: CreateExpenseRequest) =>
+    http.post<ExpenseResponse>(`/api/businesses/${businessId}/expenses`, data).then((r) => r.data),
+  updateExpense: (businessId: string, expenseId: string, data: UpdateExpenseRequest) =>
+    http.put<ExpenseResponse>(`/api/businesses/${businessId}/expenses/${expenseId}`, data).then((r) => r.data),
+  removeExpense: (businessId: string, expenseId: string) =>
+    http.delete<void>(`/api/businesses/${businessId}/expenses/${expenseId}`).then((r) => r.data),
+  profitAndLoss: (businessId: string, from: string, to: string) =>
+    http
+      .get<ProfitAndLossResponse>(`/api/businesses/${businessId}/accounting/profit-and-loss`, { params: { from, to } })
+      .then((r) => r.data),
+  balanceSheet: (businessId: string) =>
+    http.get<BalanceSheetResponse>(`/api/businesses/${businessId}/accounting/balance-sheet`).then((r) => r.data),
 };
 
 // ---------- coupons ----------
@@ -169,6 +233,8 @@ export const orderApi = {
     http.get<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}`).then((r) => r.data),
   setStatus: (businessId: string, orderId: string, data: UpdateOrderStatusRequest) =>
     http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/status`, data).then((r) => r.data),
+  setPaymentStatus: (businessId: string, orderId: string, data: UpdatePaymentStatusRequest) =>
+    http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/payment-status`, data).then((r) => r.data),
   assignDelivery: (businessId: string, orderId: string, data: AssignDeliveryAgentRequest) =>
     http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/assign-delivery`, data).then((r) => r.data),
 };

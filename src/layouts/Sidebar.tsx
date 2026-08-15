@@ -2,6 +2,8 @@ import { NavLink } from "react-router-dom";
 import clsx from "clsx";
 import type { ComponentType } from "react";
 import { APP_NAME } from "../config/env";
+import { useDemoMode } from "../demo/DemoModeContext";
+import { DEMO_LOGO_URL } from "../demo/config";
 
 export interface NavItem {
   to: string;
@@ -24,6 +26,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ brandName, logoUrl, sections, open, onNavigate }: SidebarProps) {
+  const isDemoMode = useDemoMode();
   const initials = brandName
     .split(/\s+/)
     .slice(0, 2)
@@ -36,6 +39,8 @@ export function Sidebar({ brandName, logoUrl, sections, open, onNavigate }: Side
       <div className="sidebar-brand">
         {logoUrl ? (
           <img src={logoUrl} alt="" className="sidebar-brand-logo" />
+        ) : isDemoMode ? (
+          <img src={DEMO_LOGO_URL} alt="" className="sidebar-brand-logo" style={{ background: "transparent" }} />
         ) : (
           <div className="sidebar-brand-mark">{initials || "V"}</div>
         )}

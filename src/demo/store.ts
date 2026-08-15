@@ -1,28 +1,61 @@
 import { buildSeed, type DemoData, type DemoUserRecord } from "./seed";
 import type {
+  AdjustStockRequest,
+  BalanceSheetResponse,
   BusinessResponse,
   BusinessStatus,
   CategoryResponse,
+  CategoryTreeNode,
   CouponResponse,
   CreateBusinessRequest,
   CreateCategoryRequest,
   CreateCouponRequest,
+  CreateExpenseRequest,
   CreateProductRequest,
   CreateStaffRequest,
   DeliveryAgentResponse,
   DeliveryAgentStatus,
+  ExpenseResponse,
+  InventoryValuationResponse,
+  LowStockProductResponse,
   OrderResponse,
+  OrderStatus,
+  PaymentStatus,
   ProductResponse,
   ProductStatus,
+  ProductVariantRequest,
+  ProductVariantResponse,
+  ProfitAndLossResponse,
+  StockMovementResponse,
+  TenantAnalyticsResponse,
   TenantResponse,
+  TenantUsageResponse,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
+  UpdateExpenseRequest,
   UpdateOrderStatusRequest,
   UpdateProductRequest,
   UserStatus,
   UserSummaryResponse,
 } from "../types/api";
+
+const PLAN_LIMITS: Record<TenantResponse["plan"], { maxBusinesses: number | null; maxStaffPerBusiness: number | null; maxProductsPerBusiness: number | null }> = {
+  Trial: { maxBusinesses: 1, maxStaffPerBusiness: 3, maxProductsPerBusiness: 20 },
+  Starter: { maxBusinesses: 1, maxStaffPerBusiness: 10, maxProductsPerBusiness: 200 },
+  Growth: { maxBusinesses: 5, maxStaffPerBusiness: 50, maxProductsPerBusiness: 2000 },
+  Enterprise: { maxBusinesses: null, maxStaffPerBusiness: null, maxProductsPerBusiness: null },
+};
+
+const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PendingPayment: ["Processing", "Cancelled"],
+  Processing: ["Confirmed", "OutForDelivery", "Cancelled"],
+  Confirmed: ["OutForDelivery", "Cancelled"],
+  OutForDelivery: ["Delivered", "Cancelled"],
+  Delivered: ["Refunded"],
+  Cancelled: [],
+  Refunded: [],
+};
 
 const STORAGE_KEY = "vastora.demoData.v1";
 
@@ -127,6 +160,7 @@ class DemoStore {
       contactPhone: data.contactPhone,
       status: "Draft",
       deliveryModuleEnabled: true,
+      defaultDeliveryFee: 0,
       createdAt: new Date().toISOString(),
     };
     this.data.businesses.push(business);
@@ -166,6 +200,22 @@ class DemoStore {
 
   getCategory(businessId: string, id: string): CategoryResponse | undefined {
     return this.data.categories.find((c) => c.businessId === businessId && c.id === id);
+  }
+
+  getCategoryTree(businessId: string): CategoryTreeNode[] {
+    const flat = this.listCategories(businessId);
+    const toNode = (c: CategoryResponse): CategoryTreeNode => ({
+      id: c.id,
+      businessId: c.businessId,
+      name: c.name,
+      slug: c.slug,
+      description: c.description,
+      imageUrl: c.imageUrl,
+      sortOrder: c.sortOrder,
+      isActive: c.isActive,
+      children: flat.filter((child) => child.parentCategoryId === c.id).map(toNode),
+    });
+    return flat.filter((c) => c.parentCategoryId == null).map(toNode);
   }
 
   createCategory(businessId: string, data: CreateCategoryRequest): CategoryResponse {
@@ -210,6 +260,16 @@ class DemoStore {
     return this.data.products.find((p) => p.businessId === businessId && p.id === id);
   }
 
+  private normalizeVariants(requested: ProductVariantRequest[] | null | undefined): ProductVariantResponse[] {
+    return (requested ?? []).map((v) => ({
+      id: v.id?.trim() || uid("pv"),
+      attributeSummary: v.attributeSummary,
+      sku: v.sku,
+      priceOverride: v.priceOverride,
+      stockQuantity: v.stockQuantity,
+    }));
+  }
+
   createProduct(businessId: string, data: CreateProductRequest): ProductResponse {
     const product: ProductResponse = {
       id: uid("p"),
@@ -226,9 +286,12 @@ class DemoStore {
       effectivePrice: data.price,
       stockQuantity: data.stockQuantity,
       trackInventory: data.trackInventory,
+      reorderThreshold: null,
+      reorderQuantity: null,
       images: data.images ?? [],
       tags: data.tags ?? [],
       status: "Draft",
+      variants: this.normalizeVariants(data.variants),
     };
     this.data.products.push(product);
     this.persist();
@@ -238,9 +301,19 @@ class DemoStore {
   updateProduct(businessId: string, id: string, data: UpdateProductRequest): ProductResponse | null {
     const product = this.getProduct(businessId, id);
     if (!product) return null;
-    Object.assign(product, data);
+    const { variants, ...rest } = data;
+    Object.assign(product, rest);
+    product.variants = this.normalizeVariants(variants);
     const discount = product.discountPercent && product.discountPercent > 0 ? product.discountPercent : 0;
     product.effectivePrice = discount ? +(product.price * (1 - discount / 100)).toFixed(2) : product.price;
+    this.persist();
+    return product;
+  }
+
+  addProductImage(businessId: string, id: string, url: string): ProductResponse | null {
+    const product = this.getProduct(businessId, id);
+    if (!product) return null;
+    product.images = [...product.images, url];
     this.persist();
     return product;
   }
@@ -258,6 +331,56 @@ class DemoStore {
     this.data.products = this.data.products.filter((p) => !(p.businessId === businessId && p.id === id));
     this.persist();
     return this.data.products.length < before;
+  }
+
+  // ---------- inventory ----------
+
+  listStockMovements(businessId: string, productId: string): StockMovementResponse[] {
+    const productIds = new Set(this.data.products.filter((p) => p.businessId === businessId).map((p) => p.id));
+    return this.data.stockMovements.filter((m) => m.productId === productId && productIds.has(m.productId));
+  }
+
+  adjustStock(businessId: string, productId: string, data: AdjustStockRequest, userId: string | null): ProductResponse | null {
+    const product = this.getProduct(businessId, productId);
+    if (!product) return null;
+    product.stockQuantity += data.quantityDelta;
+    const movement: StockMovementResponse = {
+      id: uid("sm"),
+      productId,
+      type: data.type,
+      quantityDelta: data.quantityDelta,
+      reason: data.reason,
+      referenceOrderId: null,
+      createdByUserId: userId,
+      createdAt: new Date().toISOString(),
+    };
+    this.data.stockMovements.push(movement);
+    this.persist();
+    return product;
+  }
+
+  getLowStock(businessId: string): LowStockProductResponse[] {
+    return this.data.products
+      .filter((p) => p.businessId === businessId && p.reorderThreshold != null && p.stockQuantity <= p.reorderThreshold)
+      .map((p) => ({
+        productId: p.id,
+        productName: p.name,
+        sku: p.sku,
+        stockQuantity: p.stockQuantity,
+        reorderThreshold: p.reorderThreshold!,
+        reorderQuantity: p.reorderQuantity,
+      }));
+  }
+
+  getValuation(businessId: string): InventoryValuationResponse {
+    const products = this.data.products.filter((p) => p.businessId === businessId);
+    const byCategory = new Map<string, number>();
+    for (const p of products) {
+      const value = p.price * p.stockQuantity;
+      byCategory.set(p.categoryId, (byCategory.get(p.categoryId) ?? 0) + value);
+    }
+    const entries = [...byCategory.entries()].map(([categoryId, value]) => ({ categoryId, value: +value.toFixed(2) }));
+    return { totalValue: +entries.reduce((sum, e) => sum + e.value, 0).toFixed(2), byCategory: entries };
   }
 
   // ---------- coupons ----------
@@ -389,18 +512,55 @@ class DemoStore {
     return this.data.orders.find((o) => o.businessId === businessId && o.id === id);
   }
 
-  setOrderStatus(businessId: string, id: string, data: UpdateOrderStatusRequest): OrderResponse | null {
+  setOrderStatus(businessId: string, id: string, data: UpdateOrderStatusRequest): OrderResponse | { error: string } | null {
     const order = this.getOrder(businessId, id);
     if (!order) return null;
+    if (!ORDER_TRANSITIONS[order.status].includes(data.status)) {
+      return { error: `Cannot move an order from '${order.status}' to '${data.status}'.` };
+    }
     order.status = data.status;
-    if (data.status === "Delivered") order.paymentStatus = "Paid";
-    if (data.status === "Cancelled") {
-      order.paymentStatus = order.paymentStatus === "Paid" ? "Refunded" : order.paymentStatus;
-      for (const item of order.items) {
-        const product = this.getProduct(businessId, item.productId);
-        if (product?.trackInventory) product.stockQuantity += item.quantity;
+    order.statusHistory.push({ status: data.status, timestamp: new Date().toISOString(), note: data.note ?? "" });
+    if (data.status === "Delivered") {
+      order.paymentStatus = "Paid";
+      if (order.deliveryAgentUserId) {
+        const agent = this.data.deliveryAgents.find((a) => a.businessId === businessId && a.userId === order.deliveryAgentUserId);
+        if (agent) {
+          agent.balance = +(agent.balance + agent.deliveryCharge).toFixed(2);
+          agent.completedDeliveries += 1;
+        }
       }
     }
+    if (data.status === "Cancelled") {
+      if (order.paymentStatus === "Paid") {
+        order.paymentStatus = "Refunded";
+        order.paymentStatusHistory.push({ status: "Refunded", timestamp: new Date().toISOString(), note: "Refunded on cancellation." });
+      }
+      for (const item of order.items) {
+        const product = this.getProduct(businessId, item.productId);
+        if (product?.trackInventory) {
+          product.stockQuantity += item.quantity;
+          this.data.stockMovements.push({
+            id: uid("sm"),
+            productId: product.id,
+            type: "Return",
+            quantityDelta: item.quantity,
+            reason: `Order ${order.orderNumber} cancelled`,
+            referenceOrderId: order.id,
+            createdByUserId: null,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+    this.persist();
+    return order;
+  }
+
+  setPaymentStatus(businessId: string, id: string, status: PaymentStatus, note: string | null): OrderResponse | null {
+    const order = this.getOrder(businessId, id);
+    if (!order) return null;
+    order.paymentStatus = status;
+    order.paymentStatusHistory.push({ status, timestamp: new Date().toISOString(), note: note ?? "" });
     this.persist();
     return order;
   }
@@ -411,6 +571,140 @@ class DemoStore {
     order.deliveryAgentUserId = deliveryAgentUserId;
     this.persist();
     return order;
+  }
+
+  // ---------- accounting ----------
+
+  listExpenses(businessId: string): ExpenseResponse[] {
+    return this.data.expenses.filter((e) => e.businessId === businessId);
+  }
+
+  createExpense(businessId: string, data: CreateExpenseRequest, userId: string): ExpenseResponse {
+    const expense: ExpenseResponse = { id: uid("exp"), businessId, createdByUserId: userId, ...data };
+    this.data.expenses.push(expense);
+    this.persist();
+    return expense;
+  }
+
+  updateExpense(businessId: string, id: string, data: UpdateExpenseRequest): ExpenseResponse | null {
+    const expense = this.data.expenses.find((e) => e.businessId === businessId && e.id === id);
+    if (!expense) return null;
+    Object.assign(expense, data);
+    this.persist();
+    return expense;
+  }
+
+  removeExpense(businessId: string, id: string): boolean {
+    const before = this.data.expenses.length;
+    this.data.expenses = this.data.expenses.filter((e) => !(e.businessId === businessId && e.id === id));
+    this.persist();
+    return this.data.expenses.length < before;
+  }
+
+  getProfitAndLoss(businessId: string, from: string, to: string): ProfitAndLossResponse {
+    const fromT = +new Date(from);
+    const toT = +new Date(to);
+    const orders = this.data.orders.filter((o) => o.businessId === businessId && +new Date(o.placedAt) >= fromT && +new Date(o.placedAt) <= toT);
+    const revenue = orders.filter((o) => o.status === "Delivered").reduce((sum, o) => sum + o.total, 0);
+    const refunds = orders.filter((o) => o.paymentStatus === "Refunded").reduce((sum, o) => sum + o.total, 0);
+    const expenses = this.data.expenses
+      .filter((e) => e.businessId === businessId && +new Date(e.incurredAt) >= fromT && +new Date(e.incurredAt) <= toT)
+      .reduce((sum, e) => sum + e.amount, 0);
+    const deliveryPayouts = orders
+      .filter((o) => o.status === "Delivered" && o.deliveryAgentUserId)
+      .reduce((sum, o) => {
+        const agent = this.data.deliveryAgents.find((a) => a.businessId === businessId && a.userId === o.deliveryAgentUserId);
+        return sum + (agent?.deliveryCharge ?? 0);
+      }, 0);
+    const round = (n: number) => +n.toFixed(2);
+    return {
+      from,
+      to,
+      revenue: round(revenue),
+      refunds: round(refunds),
+      expenses: round(expenses),
+      deliveryPayouts: round(deliveryPayouts),
+      netProfit: round(revenue - refunds - expenses - deliveryPayouts),
+    };
+  }
+
+  getBalanceSheet(businessId: string): BalanceSheetResponse {
+    const orders = this.data.orders.filter((o) => o.businessId === businessId);
+    const revenue = orders.filter((o) => o.status === "Delivered").reduce((sum, o) => sum + o.total, 0);
+    const refunds = orders.filter((o) => o.paymentStatus === "Refunded").reduce((sum, o) => sum + o.total, 0);
+    const expensesTotal = this.data.expenses.filter((e) => e.businessId === businessId).reduce((sum, e) => sum + e.amount, 0);
+    const cashPosition = +(revenue - refunds - expensesTotal).toFixed(2);
+    const inventoryValue = this.getValuation(businessId).totalValue;
+    return { cashPosition, inventoryValue, totalAssets: +(cashPosition + inventoryValue).toFixed(2) };
+  }
+
+  // ---------- tenant usage & analytics (SuperOffice) ----------
+
+  getTenantUsage(): TenantUsageResponse {
+    const limits = PLAN_LIMITS[this.data.tenant.plan];
+    const businesses = this.data.businesses.map((b) => ({
+      businessId: b.id,
+      businessName: b.name,
+      staffCount: this.data.users.filter((u) => u.businessId === b.id && ["BusinessAdmin", "BusinessStaff", "DeliveryAgent"].includes(u.role)).length,
+      maxStaffPerBusiness: limits.maxStaffPerBusiness,
+      productCount: this.data.products.filter((p) => p.businessId === b.id).length,
+      maxProductsPerBusiness: limits.maxProductsPerBusiness,
+    }));
+    return { plan: this.data.tenant.plan, businessCount: this.data.businesses.length, maxBusinesses: limits.maxBusinesses, businesses };
+  }
+
+  getAnalytics(): TenantAnalyticsResponse {
+    const businesses = this.data.businesses.map((b) => {
+      const orders = this.data.orders.filter((o) => o.businessId === b.id);
+      const revenue = orders.filter((o) => o.status === "Delivered").reduce((sum, o) => sum + o.total, 0);
+      const orderCount = orders.filter((o) => o.status !== "Cancelled").length;
+      return { businessId: b.id, businessName: b.name, orderCount, revenue: +revenue.toFixed(2) };
+    });
+    const productStats = new Map<string, { productId: string; productName: string; quantitySold: number; revenue: number }>();
+    for (const order of this.data.orders) {
+      if (order.status !== "Delivered") continue;
+      for (const item of order.items) {
+        const entry = productStats.get(item.productId) ?? { productId: item.productId, productName: item.productName, quantitySold: 0, revenue: 0 };
+        entry.quantitySold += item.quantity;
+        entry.revenue += item.lineTotal;
+        productStats.set(item.productId, entry);
+      }
+    }
+    const topProducts = [...productStats.values()]
+      .sort((a, b) => b.quantitySold - a.quantitySold)
+      .slice(0, 10)
+      .map((p) => ({ ...p, revenue: +p.revenue.toFixed(2) }));
+    return {
+      totalRevenue: +businesses.reduce((sum, b) => sum + b.revenue, 0).toFixed(2),
+      totalOrders: businesses.reduce((sum, b) => sum + b.orderCount, 0),
+      businesses,
+      topProducts,
+    };
+  }
+
+  // ---------- password reset ----------
+
+  private resetTokens = new Map<string, string>();
+
+  requestPasswordReset(email: string): void {
+    const user = this.findUserByEmail(email);
+    if (!user) return;
+    const token = uid("reset");
+    this.resetTokens.set(token, user.id);
+    // Mirrors the real backend: no email provider wired in yet, the reset link only ever
+    // reaches a server log — this is that log, stood in by the browser console.
+    console.info(`[Showcase] Password reset requested for ${email}. Reset link: ${window.location.origin}/reset-password?token=${token}`);
+  }
+
+  resetPassword(token: string, newPassword: string): boolean {
+    const userId = this.resetTokens.get(token);
+    if (!userId) return false;
+    const user = this.findUserById(userId);
+    if (!user) return false;
+    user.password = newPassword;
+    this.resetTokens.delete(token);
+    this.persist();
+    return true;
   }
 }
 
