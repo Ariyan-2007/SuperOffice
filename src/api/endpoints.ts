@@ -2,6 +2,8 @@
 // mirroring §7 of the BackOffice blueprint and §6 of the SuperOffice blueprint.
 import { http } from "./client";
 import { API_BASE_URL } from "../config/env";
+import { isDemoMode } from "../demo/state";
+import { demoStore } from "../demo/store";
 import type {
   AssignDeliveryAgentRequest,
   AuthResponse,
@@ -29,6 +31,12 @@ import type {
 // ---------- public, unauthenticated ----------
 
 export async function fetchBusinessBySlug(slug: string): Promise<BusinessResponse> {
+  if (isDemoMode()) {
+    const business = demoStore.getBusinessBySlug(slug);
+    if (!business) throw Object.assign(new Error(`No active Business found for slug "${slug}".`), { status: 404 });
+    return business;
+  }
+
   const res = await fetch(`${API_BASE_URL}/api/shop/${encodeURIComponent(slug)}`);
   if (!res.ok) {
     const body = await res.json().catch(() => null);
