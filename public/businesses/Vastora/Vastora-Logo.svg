@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Vastora">
+  <defs>
+    <linearGradient id="vastoraShieldFill" x1="18" y1="4" x2="82" y2="99" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7C6FF2" />
+      <stop offset="0.55" stop-color="#4F3FD1" />
+      <stop offset="1" stop-color="#33279E" />
+    </linearGradient>
+    <linearGradient id="vastoraShine" x1="18" y1="8" x2="58" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.4" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="vastoraLetterFill" x1="26" y1="24" x2="74" y2="81" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#EDEAFF" />
+    </linearGradient>
+    <clipPath id="vastoraShieldClip">
+      <path d="M50 3
+               C 68 3 84 10.5 93.5 22
+               C 94.5 47 87 66.5 73.5 82
+               C 64.5 92.3 56.5 97.3 50 100
+               C 43.5 97.3 35.5 92.3 26.5 82
+               C 13 66.5 5.5 47 6.5 22
+               C 16 10.5 32 3 50 3 Z" />
+    </clipPath>
+  </defs>
+
+  <path
+    d="M50 3
+       C 68 3 84 10.5 93.5 22
+       C 94.5 47 87 66.5 73.5 82
+       C 64.5 92.3 56.5 97.3 50 100
+       C 43.5 97.3 35.5 92.3 26.5 82
+       C 13 66.5 5.5 47 6.5 22
+       C 16 10.5 32 3 50 3 Z"
+    fill="url(#vastoraShieldFill)"
+    stroke="#221A66"
+    stroke-width="2.75"
+  />
+
+  <path
+    d="M50 3
+       C 68 3 84 10.5 93.5 22
+       C 94.5 47 87 66.5 73.5 82
+       C 64.5 92.3 56.5 97.3 50 100
+       C 43.5 97.3 35.5 92.3 26.5 82
+       C 13 66.5 5.5 47 6.5 22
+       C 16 10.5 32 3 50 3 Z"
+    fill="url(#vastoraShine)"
+    clip-path="url(#vastoraShieldClip)"
+  />
+
+  <path
+    d="M26 24 L39 24 L50 53 L61 24 L74 24 L55.5 79.5 L44.5 79.5 Z"
+    fill="url(#vastoraLetterFill)"
+    stroke="#221A66"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+</svg>

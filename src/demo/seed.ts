@@ -49,19 +49,19 @@ const BIZ_3 = "b-demo-3";
 
 // A BackOffice deployment is pinned to one Business by slug — line the seeded shop's slug up
 // with whatever's configured so BusinessContext resolves it even with no backend at all.
-const PRIMARY_SLUG = (IS_BACKOFFICE && BUSINESS_SLUG) || "antivaly-demo";
+const PRIMARY_SLUG = (IS_BACKOFFICE && BUSINESS_SLUG) || "vastora";
 
 export function buildSeed(): DemoData {
   const tenant: TenantResponse = {
     id: TENANT_ID,
-    name: "Antivaly Holdings",
-    slug: "antivaly-holdings",
+    name: "Vastora Holdings",
+    slug: "vastora-holdings",
     type: "MultiBusiness",
     status: "Active",
     plan: "Growth",
     ownerUserId: "u-owner",
-    contactEmail: DEMO_EMAILS.owner,
-    contactPhone: "+1 555 0100",
+    contactEmail: "ariyanjahangireng@gmail.com",
+    contactPhone: "+8801817274124",
     createdAt: daysAgo(180),
   };
 
@@ -69,7 +69,7 @@ export function buildSeed(): DemoData {
     {
       id: BIZ_1,
       tenantId: TENANT_ID,
-      name: "Antivaly Grocers",
+      name: "Vastora",
       slug: PRIMARY_SLUG,
       customDomain: null,
       description: "Neighborhood grocery delivering fresh produce, pantry staples and bakery goods same-day.",
@@ -77,8 +77,8 @@ export function buildSeed(): DemoData {
       bannerUrl: "",
       themeColor: "#4338CA",
       currency: "USD",
-      contactEmail: "hello@antivaly-demo.test",
-      contactPhone: "+1 555 0101",
+      contactEmail: "ariyanjahangireng@gmail.com",
+      contactPhone: "+8801817274124",
       status: "Active",
       deliveryModuleEnabled: true,
       defaultDeliveryFee: 2.99,

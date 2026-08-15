@@ -16,7 +16,7 @@ VITE_API_BASE_URL=http://localhost:5276   # staging — swap for the real API ba
 
 # BackOffice — one deployment per Business
 VITE_APP_MODE=backoffice
-VITE_BUSINESS_SLUG=antivaly
+VITE_BUSINESS_SLUG=vastora
 
 # SuperOffice — one deployment total, login determines the Tenant
 VITE_APP_MODE=superoffice
