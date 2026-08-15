@@ -68,7 +68,7 @@ export function CategoriesPage() {
   const columns: Column<CategoryResponse>[] = [
     { key: "name", header: "Name", render: (c) => <span style={{ fontWeight: 600 }}>{c.name}</span> },
     { key: "slug", header: "Slug", render: (c) => <span className="cell-mono cell-muted">{c.slug}</span> },
-    { key: "sort", header: "Sort order", render: (c) => c.sortOrder },
+    { key: "sort", header: "Sort Order", render: (c) => c.sortOrder },
     { key: "status", header: "Status", render: (c) => <Badge tone={c.isActive ? "success" : "neutral"}>{c.isActive ? "Active" : "Inactive"}</Badge> },
     {
       key: "actions",
@@ -104,7 +104,7 @@ export function CategoriesPage() {
       {categories && categories.length === 0 ? (
         <EmptyState
           icon={FolderTree}
-          title="No categories yet"
+          title="No Categories Yet"
           description="Create your first category to start organizing products."
           action={
             <Button variant="primary" onClick={() => setEditing("new")} style={{ marginTop: 8 }}>
@@ -148,7 +148,7 @@ export function CategoriesPage() {
 
       <ConfirmDialog
         open={!!deleting}
-        title="Delete category"
+        title="Delete Category"
         description={<>Delete <strong>{deleting?.name}</strong>? This can't be undone.</>}
         confirmLabel="Delete"
         danger
@@ -192,7 +192,7 @@ function CategoryModal({
     <Modal
       open
       onClose={onClose}
-      title={category ? "Edit category" : "New category"}
+      title={category ? "Edit Category" : "New Category"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -208,7 +208,7 @@ function CategoryModal({
           <Textarea rows={3} {...register("description")} />
         </Field>
         <div className="form-grid">
-          <Field label="Sort order">
+          <Field label="Sort Order">
             <Input type="number" {...register("sortOrder", { valueAsNumber: true })} />
           </Field>
           <Field label="Image URL" optional>

@@ -34,7 +34,7 @@ export function MyDeliveriesPage() {
   return (
     <div className="section-stack">
       {orders && orders.length === 0 ? (
-        <EmptyState icon={Package} title="No deliveries assigned" description="Assigned orders will show up here." />
+        <EmptyState icon={Package} title="No Deliveries Assigned" description="Assigned orders will show up here." />
       ) : (
         <>
           {active.map((o) => (

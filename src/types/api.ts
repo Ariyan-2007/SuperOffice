@@ -62,6 +62,7 @@ export interface BusinessResponse {
   contactEmail: string;
   contactPhone: string;
   status: BusinessStatus;
+  deliveryModuleEnabled: boolean;
   createdAt: string;
 }
 

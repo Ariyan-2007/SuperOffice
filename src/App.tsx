@@ -8,6 +8,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { AppRouter } from "./routes/AppRouter";
 import { assertConfigured } from "./config/env";
 import { MisconfiguredScreen } from "./pages/shared/MisconfiguredScreen";
+import { DemoModeProvider } from "./demo/DemoModeContext";
 
 export default function App() {
   const configError = assertConfigured();
@@ -18,11 +19,13 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <BrowserRouter>
-            <BusinessProvider>
-              <AuthProvider>
-                <AppRouter />
-              </AuthProvider>
-            </BusinessProvider>
+            <DemoModeProvider>
+              <BusinessProvider>
+                <AuthProvider>
+                  <AppRouter />
+                </AuthProvider>
+              </BusinessProvider>
+            </DemoModeProvider>
           </BrowserRouter>
         </ToastProvider>
       </QueryClientProvider>

@@ -118,7 +118,7 @@ export function CouponsPage() {
       />
 
       {coupons && coupons.length === 0 ? (
-        <EmptyState icon={Ticket} title="No coupons yet" description="Create a discount code for customers to use at checkout." />
+        <EmptyState icon={Ticket} title="No Coupons Yet" description="Create a discount code for customers to use at checkout." />
       ) : (
         <DataTable columns={columns} rows={coupons ?? []} rowKey={(c) => c.id} />
       )}
@@ -135,7 +135,7 @@ export function CouponsPage() {
 
       <ConfirmDialog
         open={!!deleting}
-        title="Delete coupon"
+        title="Delete Coupon"
         description={<>Delete <strong>{deleting?.code}</strong>? This can't be undone.</>}
         confirmLabel="Delete"
         danger
@@ -213,7 +213,7 @@ function CouponModal({
     <Modal
       open
       onClose={onClose}
-      title={coupon ? "Edit coupon" : "New coupon"}
+      title={coupon ? "Edit Coupon" : "New Coupon"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -226,25 +226,25 @@ function CouponModal({
           <Input disabled={!!coupon} hasError={!!errors.code} {...register("code", { required: "Code is required" })} />
         </Field>
         <div className="form-grid">
-          <Field label="Discount type">
+          <Field label="Discount Type">
             <Select disabled={!!coupon} {...register("discountType")}>
               <option value="Percentage">Percentage</option>
               <option value="FixedAmount">Fixed amount</option>
             </Select>
           </Field>
-          <Field label="Discount value">
+          <Field label="Discount Value">
             <Input disabled={!!coupon} type="number" min="0" step="0.01" {...register("discountValue", { valueAsNumber: true, min: 0 })} />
           </Field>
-          <Field label="Minimum order amount" optional>
+          <Field label="Minimum Order Amount" optional>
             <Input disabled={!!coupon} type="number" min="0" step="0.01" {...register("minOrderAmount")} />
           </Field>
-          <Field label="Max uses" optional>
+          <Field label="Max Uses" optional>
             <Input type="number" min="0" {...register("maxUses")} />
           </Field>
-          <Field label="Starts at">
+          <Field label="Starts At">
             <Input disabled={!!coupon} type="datetime-local" {...register("startsAt", { required: true })} />
           </Field>
-          <Field label="Expires at">
+          <Field label="Expires At">
             <Input type="datetime-local" {...register("expiresAt", { required: true })} />
           </Field>
         </div>

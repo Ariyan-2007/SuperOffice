@@ -24,10 +24,11 @@ export const BUSINESS_SLUG: string | undefined = import.meta.env.VITE_BUSINESS_S
 
 export const APP_NAME = IS_BACKOFFICE ? "BackOffice" : "SuperOffice";
 
+// A missing/unreachable API_BASE_URL is no longer a hard failure — DemoModeProvider treats
+// it as a signal to fall back to Project Showcase mode instead. Only app-identity config
+// (which Business a BackOffice deployment is pinned to) still hard-fails here, since Showcase
+// mode has no way to guess that.
 export function assertConfigured(): string | null {
-  if (!API_BASE_URL) {
-    return "VITE_API_BASE_URL is not set. This deployment is missing required configuration.";
-  }
   if (IS_BACKOFFICE && !BUSINESS_SLUG) {
     return "VITE_BUSINESS_SLUG is not set. A BackOffice deployment must be pinned to one Business.";
   }

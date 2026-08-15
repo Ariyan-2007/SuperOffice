@@ -5,6 +5,7 @@ import { Plus, ShieldOff, ShieldCheck, UserCog } from "lucide-react";
 import { staffApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
+import { useBusiness } from "../../context/BusinessContext";
 import { PageHeader } from "../../components/StatCard";
 import { Button } from "../../components/Button";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -17,6 +18,7 @@ import type { CreateStaffRequest, UserSummaryResponse } from "../../types/api";
 
 export function StaffPage() {
   const businessId = useBusinessId();
+  const { business } = useBusiness();
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -83,13 +85,14 @@ export function StaffPage() {
       />
 
       {staff && staff.length === 0 ? (
-        <EmptyState icon={UserCog} title="No staff accounts yet" description="Invite your team to help run this shop." />
+        <EmptyState icon={UserCog} title="No Staff Accounts Yet" description="Invite your team to help run this shop." />
       ) : (
         <DataTable columns={columns} rows={staff ?? []} rowKey={(u) => u.id} />
       )}
 
       {creating && (
         <StaffModal
+          deliveryModuleEnabled={business?.deliveryModuleEnabled ?? true}
           onClose={() => setCreating(false)}
           onSubmit={(data) => createMutation.mutate(data)}
           loading={createMutation.isPending}
@@ -100,10 +103,12 @@ export function StaffPage() {
 }
 
 function StaffModal({
+  deliveryModuleEnabled,
   onClose,
   onSubmit,
   loading,
 }: {
+  deliveryModuleEnabled: boolean;
   onClose: () => void;
   onSubmit: (data: CreateStaffRequest) => void;
   loading: boolean;
@@ -118,7 +123,7 @@ function StaffModal({
     <Modal
       open
       onClose={onClose}
-      title="New staff account"
+      title="New Staff Account"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -127,7 +132,7 @@ function StaffModal({
       }
     >
       <form className="section-stack" onSubmit={handleSubmit(onSubmit)}>
-        <Field label="Full name" error={errors.fullName?.message}>
+        <Field label="Full Name" error={errors.fullName?.message}>
           <Input hasError={!!errors.fullName} {...register("fullName", { required: "Full name is required" })} />
         </Field>
         <Field label="Email" error={errors.email?.message}>
@@ -139,11 +144,16 @@ function StaffModal({
         <Field label="Phone">
           <Input {...register("phone")} />
         </Field>
-        <Field label="Role">
+        <Field
+          label="Role"
+          hint={!deliveryModuleEnabled ? "Delivery module is disabled for this Business — enable it in Business Profile first." : undefined}
+        >
           <Select {...register("role", { required: true })}>
             <option value="BusinessAdmin">Business admin</option>
             <option value="BusinessStaff">Business staff</option>
-            <option value="DeliveryAgent">Delivery agent</option>
+            <option value="DeliveryAgent" disabled={!deliveryModuleEnabled}>
+              Delivery agent{!deliveryModuleEnabled ? " (disabled)" : ""}
+            </option>
           </Select>
         </Field>
       </form>

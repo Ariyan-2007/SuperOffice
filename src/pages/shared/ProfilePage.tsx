@@ -37,7 +37,7 @@ export function ProfilePage() {
 
   return (
     <div className="section-stack">
-      <PageHeader title="My profile" subtitle="Your account details for this login." />
+      <PageHeader title="My Profile" subtitle="Your account details for this login." />
 
       <Card>
         <CardHeader title="Account" />
@@ -56,11 +56,11 @@ export function ProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader title="Edit profile" />
+        <CardHeader title="Edit Profile" />
         <CardBody>
           <form onSubmit={onSubmit} className="section-stack">
             <div className="form-grid">
-              <Field label="Full name" error={errors.fullName?.message}>
+              <Field label="Full Name" error={errors.fullName?.message}>
                 <Input hasError={!!errors.fullName} {...register("fullName", { required: "Full name is required" })} />
               </Field>
               <Field label="Phone" optional>

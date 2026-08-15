@@ -24,7 +24,7 @@ export function CustomersPage() {
     <div className="section-stack">
       <PageHeader title="Customers" subtitle="Read-only — customers manage their own accounts through the Shop." />
       {customers && customers.length === 0 ? (
-        <EmptyState icon={Users} title="No customers yet" description="Customers will appear here once they sign up on the Shop." />
+        <EmptyState icon={Users} title="No Customers Yet" description="Customers will appear here once they sign up on the Shop." />
       ) : (
         <DataTable columns={columns} rows={customers ?? []} rowKey={(u) => u.id} />
       )}

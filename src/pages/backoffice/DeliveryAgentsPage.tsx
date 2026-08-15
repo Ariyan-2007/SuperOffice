@@ -62,8 +62,8 @@ export function DeliveryAgentsPage() {
       },
     },
     { key: "level", header: "Level", render: (a) => a.levelCode },
-    { key: "completed", header: "Completed deliveries", render: (a) => a.completedDeliveries },
-    { key: "charge", header: "Delivery charge", render: (a) => a.deliveryCharge },
+    { key: "completed", header: "Completed Deliveries", render: (a) => a.completedDeliveries },
+    { key: "charge", header: "Delivery Charge", render: (a) => a.deliveryCharge },
     {
       key: "status",
       header: "Status",
@@ -86,9 +86,9 @@ export function DeliveryAgentsPage() {
 
   return (
     <div className="section-stack">
-      <PageHeader title="Delivery agents" subtitle="Manage availability for order deliveries." />
+      <PageHeader title="Delivery Agents" subtitle="Manage availability for order deliveries." />
       {agents && agents.length === 0 ? (
-        <EmptyState icon={Truck} title="No delivery agents yet" description="Create a delivery agent account from Staff." />
+        <EmptyState icon={Truck} title="No Delivery Agents Yet" description="Create a delivery agent account from Staff." />
       ) : (
         <DataTable columns={columns} rows={agents ?? []} rowKey={(a) => a.id} />
       )}

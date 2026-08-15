@@ -3,11 +3,12 @@ import clsx from "clsx";
 import { LogOut, Package, User as UserIcon, Truck } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { ShowcaseIndicator } from "../demo/ShowcaseIndicator";
 import { APP_NAME } from "../config/env";
 
 const NAV = [
-  { to: "/", label: "My deliveries", icon: Package, end: true },
-  { to: "/status", label: "My status", icon: Truck },
+  { to: "/", label: "My Deliveries", icon: Package, end: true },
+  { to: "/status", label: "My Status", icon: Truck },
   { to: "/profile", label: "Profile", icon: UserIcon },
 ];
 
@@ -21,6 +22,7 @@ export function DeliveryAgentLayout({ brandName }: { brandName: string }) {
       <header className="topbar" style={{ position: "sticky" }}>
         <div className="topbar-title">{brandName}</div>
         <div className="topbar-actions">
+          <ShowcaseIndicator />
           <ThemeToggle />
           <button className="icon-btn" onClick={() => logout()} aria-label="Sign out" title="Sign out">
             <LogOut size={16} />

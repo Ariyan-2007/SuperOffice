@@ -52,7 +52,7 @@ export function OrdersPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={ClipboardList} title="No orders" description="Orders placed on the Shop will show up here." />
+        <EmptyState icon={ClipboardList} title="No Orders" description="Orders placed on the Shop will show up here." />
       ) : (
         <DataTable columns={columns} rows={filtered} rowKey={(o) => o.id} onRowClick={(o) => navigate(`/orders/${o.id}`)} />
       )}

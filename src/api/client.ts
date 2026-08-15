@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 import { API_BASE_URL } from "../config/env";
 import { tokenStore } from "./tokenStore";
+import { demoAdapter } from "../demo/adapter";
 import type { AuthResponse, ProblemDetails } from "../types/api";
 
 export class ApiError extends Error {
@@ -35,6 +36,12 @@ export function setAuthFailureHandler(fn: () => void): void {
 }
 
 export const http: AxiosInstance = axios.create({ baseURL: API_BASE_URL });
+
+// Called once by DemoModeProvider when connectivity checking finds no reachable backend —
+// every subsequent request on this instance resolves against the local DemoStore instead.
+export function enableDemoAdapter(): void {
+  http.defaults.adapter = demoAdapter;
+}
 
 http.interceptors.request.use((config) => {
   const tokens = tokenStore.get();

@@ -36,24 +36,24 @@ export function DashboardPage() {
       <PageHeader title={`Welcome back, ${user?.fullName?.split(" ")[0] ?? ""}`} subtitle={business?.name ?? "Dashboard"} />
 
       <div className="stat-grid">
-        <StatCard label="Open orders" value={openOrders.length} meta={`${orders.data?.length ?? 0} total`} />
-        <StatCard label="Active products" value={activeProducts.length} meta={`${products.data?.length ?? 0} total`} />
+        <StatCard label="Open Orders" value={openOrders.length} meta={`${orders.data?.length ?? 0} total`} />
+        <StatCard label="Active Products" value={activeProducts.length} meta={`${products.data?.length ?? 0} total`} />
         <StatCard
-          label="Low stock"
+          label="Low Stock"
           value={lowStock.length}
           meta={lowStock.length ? "≤ 5 units remaining" : "All stocked"}
         />
-        <StatCard label="Active coupons" value={activeCoupons.length} meta={`${categories.data?.length ?? 0} categories`} />
+        <StatCard label="Active Coupons" value={activeCoupons.length} meta={`${categories.data?.length ?? 0} categories`} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
         <Card>
-          <CardHeader title="Recent orders" actions={<Link to="/orders" className="btn btn-ghost btn-sm">View all</Link>} />
+          <CardHeader title="Recent Orders" actions={<Link to="/orders" className="btn btn-ghost btn-sm">View all</Link>} />
           <CardBody style={{ padding: 0 }}>
             {recentOrders.length === 0 ? (
               <div className="empty-state">
                 <ClipboardList className="empty-state-icon" strokeWidth={1.4} />
-                <div className="empty-state-title">No orders yet</div>
+                <div className="empty-state-title">No Orders Yet</div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>

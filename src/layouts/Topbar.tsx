@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronDown, LogOut, Menu, User as UserIcon } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { ShowcaseIndicator } from "../demo/ShowcaseIndicator";
 
 export function Topbar({ title, onMenuClick }: { title: string; onMenuClick?: () => void }) {
   const { user, logout } = useAuth();
@@ -27,6 +28,7 @@ export function Topbar({ title, onMenuClick }: { title: string; onMenuClick?: ()
         <div className="topbar-title">{title}</div>
       </div>
       <div className="topbar-actions">
+        <ShowcaseIndicator />
         <ThemeToggle />
         <div
           className="user-menu"
