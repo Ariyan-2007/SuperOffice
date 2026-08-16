@@ -1,20 +1,31 @@
 import { demoStore } from "./store";
+import { paginate } from "./paginate";
 import type { DemoUserRecord } from "./seed";
 import type {
   AdjustStockRequest,
   AssignDeliveryAgentRequest,
   AuthResponse,
   BusinessStatus,
+  ContentBlockRequest,
+  CreateApiKeyRequest,
   CreateBusinessRequest,
   CreateCategoryRequest,
   CreateCouponRequest,
   CreateExpenseRequest,
+  CreatePromotionRequest,
   CreateProductRequest,
+  CreateShippingZoneRequest,
   CreateStaffRequest,
+  CreateWebhookRequest,
+  CustomerGroupRequest,
+  DecideReturnRequest,
   DeliveryAgentStatus,
+  GrantStoreCreditRequest,
+  IssueGiftCardRequest,
   PaymentStatus,
   ProblemDetails,
   ProductStatus,
+  ReviewStatus,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
@@ -22,6 +33,7 @@ import type {
   UpdateOrderStatusRequest,
   UpdatePaymentStatusRequest,
   UpdateProductRequest,
+  UpdateShipmentRequest,
   UserStatus,
 } from "../types/api";
 
@@ -141,7 +153,12 @@ const routes: RouteDef[] = [
   { method: "GET", path: "/api/tenants/me/usage", auth: "required", handler: () => ok(demoStore.getTenantUsage()) },
   { method: "GET", path: "/api/superoffice/analytics", auth: "required", handler: () => ok(demoStore.getAnalytics()) },
 
-  { method: "GET", path: "/api/superoffice/businesses", auth: "required", handler: () => ok(demoStore.listBusinesses()) },
+  {
+    method: "GET",
+    path: "/api/superoffice/businesses",
+    auth: "required",
+    handler: () => ok(demoStore.listBusinesses()),
+  },
   {
     method: "POST",
     path: "/api/superoffice/businesses",
@@ -162,7 +179,7 @@ const routes: RouteDef[] = [
     method: "GET",
     path: "/api/superoffice/businesses/:businessId",
     auth: "required",
-    handler: ({ params }) => demoStore.getBusiness(params.businessId) ? ok(demoStore.getBusiness(params.businessId)) : fail(404, "Business not found."),
+    handler: ({ params }) => (demoStore.getBusiness(params.businessId) ? ok(demoStore.getBusiness(params.businessId)) : fail(404, "Business not found.")),
   },
   {
     method: "PUT",
@@ -245,7 +262,27 @@ const routes: RouteDef[] = [
     handler: ({ params }) => (demoStore.removeCategory(params.businessId, params.categoryId) ? ok(undefined, 204) : fail(404, "Category not found.")),
   },
 
-  { method: "GET", path: "/api/businesses/:businessId/products", auth: "required", handler: ({ params }) => ok(demoStore.listProducts(params.businessId)) },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/products/export",
+    auth: "required",
+    handler: ({ params }) => ok(demoStore.exportProductsCsv(params.businessId)),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/products/import",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { csvText?: string };
+      return ok(demoStore.importProductsCsv(params.businessId, b.csvText ?? ""));
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/products",
+    auth: "required",
+    handler: ({ params, query }) => ok(paginate(demoStore.listProducts(params.businessId, query.search), query)),
+  },
   {
     method: "POST",
     path: "/api/businesses/:businessId/products",
@@ -305,7 +342,7 @@ const routes: RouteDef[] = [
     method: "GET",
     path: "/api/businesses/:businessId/products/:productId/stock-movements",
     auth: "required",
-    handler: ({ params }) => ok(demoStore.listStockMovements(params.businessId, params.productId)),
+    handler: ({ params, query }) => ok(paginate(demoStore.listStockMovements(params.businessId, params.productId), query)),
   },
   {
     method: "POST",
@@ -381,6 +418,18 @@ const routes: RouteDef[] = [
   },
 
   { method: "GET", path: "/api/businesses/:businessId/customers", auth: "required", handler: ({ params }) => ok(demoStore.listCustomers(params.businessId)) },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/customers/:customerUserId/store-credit",
+    auth: "required",
+    handler: ({ params }) => ok(demoStore.storeCreditStatement(params.businessId, params.customerUserId)),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/customers/:customerUserId/store-credit",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.grantStoreCredit(params.businessId, params.customerUserId, body as GrantStoreCreditRequest), 201),
+  },
 
   { method: "GET", path: "/api/businesses/:businessId/delivery-agents", auth: "required", handler: ({ params }) => ok(demoStore.listDeliveryAgents(params.businessId)) },
   {
@@ -417,9 +466,24 @@ const routes: RouteDef[] = [
     method: "GET",
     path: "/api/businesses/:businessId/orders/assigned-to-me",
     auth: "required",
-    handler: ({ params, auth }) => ok(demoStore.listOrdersAssignedToMe(params.businessId, auth!.userId)),
+    handler: ({ params, auth, query }) => ok(paginate(demoStore.listOrdersAssignedToMe(params.businessId, auth!.userId), query)),
   },
-  { method: "GET", path: "/api/businesses/:businessId/orders", auth: "required", handler: ({ params }) => ok(demoStore.listOrders(params.businessId)) },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/orders",
+    auth: "required",
+    handler: ({ params, query }) =>
+      ok(paginate(demoStore.listOrders(params.businessId, { status: query.status, paymentStatus: query.paymentStatus, search: query.search, from: query.from, to: query.to }), query)),
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/orders/:orderId/invoice",
+    auth: "required",
+    handler: ({ params }) => {
+      const invoice = demoStore.getInvoice(params.businessId, params.orderId);
+      return invoice ? ok(invoice) : fail(404, "Order not found.");
+    },
+  },
   {
     method: "GET",
     path: "/api/businesses/:businessId/orders/:orderId",
@@ -463,7 +527,263 @@ const routes: RouteDef[] = [
       return order ? ok(order) : fail(404, "Order not found.");
     },
   },
+  {
+    method: "PATCH",
+    path: "/api/businesses/:businessId/orders/:orderId/shipment",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const order = demoStore.setShipment(params.businessId, params.orderId, body as UpdateShipmentRequest);
+      return order ? ok(order) : fail(404, "Order not found.");
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/businesses/:businessId/orders/:orderId/internal-note",
+    auth: "required",
+    handler: ({ params }) => {
+      const order = demoStore.setInternalNote(params.businessId, params.orderId);
+      return order ? ok(order) : fail(404, "Order not found.");
+    },
+  },
 
+  // ---------- returns / RMAs (added 2026-08-16) ----------
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/returns",
+    auth: "required",
+    handler: ({ params, query }) => ok(paginate(demoStore.listReturns(params.businessId, query.status), query)),
+  },
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/returns/:returnId",
+    auth: "required",
+    handler: ({ params }) => {
+      const ret = demoStore.getReturn(params.businessId, params.returnId);
+      return ret ? ok(ret) : fail(404, "Return not found.");
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/returns/:returnId/decision",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const result = demoStore.decideReturn(params.businessId, params.returnId, body as DecideReturnRequest);
+      if (!result) return fail(404, "Return not found.");
+      if ("error" in result) return fail(409, result.error);
+      return ok(result);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/returns/:returnId/received",
+    auth: "required",
+    handler: ({ params }) => {
+      const result = demoStore.markReturnReceived(params.businessId, params.returnId);
+      if (!result) return fail(404, "Return not found.");
+      if ("error" in result) return fail(409, result.error);
+      return ok(result);
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/returns/:returnId/refund",
+    auth: "required",
+    handler: ({ params }) => {
+      const result = demoStore.refundReturn(params.businessId, params.returnId);
+      if (!result) return fail(404, "Return not found.");
+      if ("error" in result) return fail(409, result.error);
+      return ok(result);
+    },
+  },
+
+  // ---------- reviews (added 2026-08-16) ----------
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/reviews",
+    auth: "required",
+    handler: ({ params, query }) => ok(paginate(demoStore.listReviews(params.businessId, query.status), query)),
+  },
+  {
+    method: "PATCH",
+    path: "/api/businesses/:businessId/reviews/:reviewId/status",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { status: ReviewStatus };
+      const review = demoStore.setReviewStatus(params.businessId, params.reviewId, b.status);
+      return review ? ok(review) : fail(404, "Review not found.");
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/reviews/:reviewId/reply",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { reply: string };
+      const review = demoStore.replyToReview(params.businessId, params.reviewId, b.reply);
+      return review ? ok(review) : fail(404, "Review not found.");
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/reviews/:reviewId",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removeReview(params.businessId, params.reviewId) ? ok(undefined, 204) : fail(404, "Review not found.")),
+  },
+
+  // ---------- merchandising (added 2026-08-16) ----------
+  { method: "GET", path: "/api/businesses/:businessId/promotions", auth: "required", handler: ({ params, query }) => ok(paginate(demoStore.listPromotions(params.businessId), query)) },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/promotions",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.createPromotion(params.businessId, body as CreatePromotionRequest), 201),
+  },
+  {
+    method: "PUT",
+    path: "/api/businesses/:businessId/promotions/:id",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const promo = demoStore.updatePromotion(params.businessId, params.id, body as CreatePromotionRequest);
+      return promo ? ok(promo) : fail(404, "Promotion not found.");
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/promotions/:id",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removePromotion(params.businessId, params.id) ? ok(undefined, 204) : fail(404, "Promotion not found.")),
+  },
+
+  { method: "GET", path: "/api/businesses/:businessId/customer-groups", auth: "required", handler: ({ params, query }) => ok(paginate(demoStore.listCustomerGroups(params.businessId), query)) },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/customer-groups",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.createCustomerGroup(params.businessId, body as CustomerGroupRequest), 201),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/customer-groups/:id/members",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { customerUserIds: string[] };
+      demoStore.addCustomerGroupMembers(params.id, b.customerUserIds ?? []);
+      return ok(undefined, 204);
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/customer-groups/:id/members",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { customerUserIds: string[] };
+      demoStore.removeCustomerGroupMembers(params.id, b.customerUserIds ?? []);
+      return ok(undefined, 204);
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/businesses/:businessId/customer-groups/:id",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const group = demoStore.updateCustomerGroup(params.businessId, params.id, body as CustomerGroupRequest);
+      return group ? ok(group) : fail(404, "Customer group not found.");
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/customer-groups/:id",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removeCustomerGroup(params.businessId, params.id) ? ok(undefined, 204) : fail(404, "Customer group not found.")),
+  },
+
+  { method: "GET", path: "/api/businesses/:businessId/gift-cards", auth: "required", handler: ({ params, query }) => ok(paginate(demoStore.listGiftCards(params.businessId), query)) },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/gift-cards",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.issueGiftCard(params.businessId, body as IssueGiftCardRequest), 201),
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/gift-cards/:id",
+    auth: "required",
+    handler: ({ params }) => (demoStore.deactivateGiftCard(params.businessId, params.id) ? ok(undefined, 204) : fail(404, "Gift card not found.")),
+  },
+
+  { method: "GET", path: "/api/businesses/:businessId/shipping-zones", auth: "required", handler: ({ params, query }) => ok(paginate(demoStore.listShippingZones(params.businessId), query)) },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/shipping-zones",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.createShippingZone(params.businessId, body as CreateShippingZoneRequest), 201),
+  },
+  {
+    method: "PUT",
+    path: "/api/businesses/:businessId/shipping-zones/:id",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const zone = demoStore.updateShippingZone(params.businessId, params.id, body as CreateShippingZoneRequest);
+      return zone ? ok(zone) : fail(404, "Shipping zone not found.");
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/shipping-zones/:id",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removeShippingZone(params.businessId, params.id) ? ok(undefined, 204) : fail(404, "Shipping zone not found.")),
+  },
+
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/content",
+    auth: "required",
+    handler: ({ params, query }) => ok(paginate(demoStore.listContent(params.businessId, query.type), query)),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/content",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.createContent(params.businessId, body as ContentBlockRequest), 201),
+  },
+  {
+    method: "PUT",
+    path: "/api/businesses/:businessId/content/:id",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const block = demoStore.updateContent(params.businessId, params.id, body as ContentBlockRequest);
+      return block ? ok(block) : fail(404, "Content block not found.");
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/businesses/:businessId/content/:id",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removeContent(params.businessId, params.id) ? ok(undefined, 204) : fail(404, "Content block not found.")),
+  },
+
+  // ---------- audit log (added 2026-08-16) ----------
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/audit-log",
+    auth: "required",
+    handler: ({ params, query }) =>
+      ok(paginate(demoStore.listAuditLog(params.businessId, { userId: query.userId, resourceId: query.resourceId, from: query.from, to: query.to }), query)),
+  },
+
+  // ---------- dashboard (added 2026-08-16) ----------
+  {
+    method: "GET",
+    path: "/api/businesses/:businessId/analytics/dashboard",
+    auth: "required",
+    handler: ({ params, query }) => {
+      const to = query.to ?? new Date().toISOString();
+      const from = query.from ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
+      return ok(demoStore.getDashboard(params.businessId, from, to));
+    },
+  },
+
+  // ---------- accounting ----------
   { method: "GET", path: "/api/businesses/:businessId/expenses", auth: "required", handler: ({ params }) => ok(demoStore.listExpenses(params.businessId)) },
   {
     method: "POST",
@@ -497,6 +817,47 @@ const routes: RouteDef[] = [
     path: "/api/businesses/:businessId/accounting/balance-sheet",
     auth: "required",
     handler: ({ params }) => ok(demoStore.getBalanceSheet(params.businessId)),
+  },
+
+  // ---------- integrations: webhooks & API keys (added 2026-08-16, SuperOffice/TenantOwner) ----------
+  { method: "GET", path: "/api/integrations/webhooks/events", auth: "required", handler: () => ok(demoStore.webhookEventNames()) },
+  { method: "GET", path: "/api/integrations/webhooks", auth: "required", handler: ({ query }) => ok(paginate(demoStore.listWebhooks(), query)) },
+  {
+    method: "POST",
+    path: "/api/integrations/webhooks",
+    auth: "required",
+    handler: ({ body }) => {
+      const req = body as CreateWebhookRequest;
+      if (!req.url?.startsWith("https://")) return fail(409, "Webhook URL must be absolute HTTPS.");
+      const known = new Set(demoStore.webhookEventNames());
+      if (req.events.some((e) => !known.has(e))) return fail(409, "One or more event names are not recognized.");
+      return ok(demoStore.createWebhook(req), 201);
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/integrations/webhooks/:webhookId",
+    auth: "required",
+    handler: ({ params }) => (demoStore.removeWebhook(params.webhookId) ? ok(undefined, 204) : fail(404, "Webhook not found.")),
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/webhooks/:webhookId/deliveries",
+    auth: "required",
+    handler: ({ params, query }) => ok(paginate(demoStore.listWebhookDeliveries(params.webhookId), query)),
+  },
+  { method: "GET", path: "/api/integrations/api-keys", auth: "required", handler: ({ query }) => ok(paginate(demoStore.listApiKeys(), query)) },
+  {
+    method: "POST",
+    path: "/api/integrations/api-keys",
+    auth: "required",
+    handler: ({ body }) => ok(demoStore.createApiKey(body as CreateApiKeyRequest), 201),
+  },
+  {
+    method: "DELETE",
+    path: "/api/integrations/api-keys/:apiKeyId",
+    auth: "required",
+    handler: ({ params }) => (demoStore.revokeApiKey(params.apiKeyId) ? ok(undefined, 204) : fail(404, "API key not found.")),
   },
 ];
 

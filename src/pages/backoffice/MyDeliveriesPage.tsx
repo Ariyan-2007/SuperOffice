@@ -23,7 +23,7 @@ export function MyDeliveriesPage() {
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders-assigned-to-me", businessId],
-    queryFn: () => orderApi.assignedToMe(businessId),
+    queryFn: () => orderApi.assignedToMe(businessId, 1, 100).then((r) => r.items),
   });
 
   if (isLoading) return <PageLoader />;

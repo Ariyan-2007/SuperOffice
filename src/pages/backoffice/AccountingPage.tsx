@@ -10,7 +10,7 @@ import { PageHeader, StatCard } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { DataTable, type Column } from "../../components/DataTable";
-import { PageLoader, EmptyState } from "../../components/Feedback";
+import { PageLoader, EmptyState, InfoBanner } from "../../components/Feedback";
 import { Modal, ConfirmDialog } from "../../components/Modal";
 import { Field, Input, Textarea } from "../../components/Field";
 import { useToast } from "../../context/ToastContext";
@@ -134,13 +134,24 @@ export function AccountingPage() {
           {pnlLoading || !pnl ? (
             <PageLoader />
           ) : (
-            <div className="stat-grid">
-              <StatCard label="Revenue" value={formatMoney(pnl.revenue, currency)} meta="Delivered orders only" />
-              <StatCard label="Refunds" value={formatMoney(pnl.refunds, currency)} />
-              <StatCard label="Expenses" value={formatMoney(pnl.expenses, currency)} />
-              <StatCard label="Delivery Payouts" value={formatMoney(pnl.deliveryPayouts, currency)} />
-              <StatCard label="Net Profit" value={formatMoney(pnl.netProfit, currency)} />
-            </div>
+            <>
+              {pnl.uncostedOrderCount > 0 && (
+                <InfoBanner>
+                  {pnl.uncostedOrderCount} delivered order{pnl.uncostedOrderCount === 1 ? "" : "s"} in this window contributed no cost —
+                  gross margin is overstated by an unknown amount. Add cost prices on the Products page to fix this.
+                </InfoBanner>
+              )}
+              <div className="stat-grid" style={{ marginTop: pnl.uncostedOrderCount > 0 ? 16 : 0 }}>
+                <StatCard label="Revenue" value={formatMoney(pnl.revenue, currency)} meta="Delivered orders only, net of tax" />
+                <StatCard label="Cost of Goods Sold" value={formatMoney(pnl.costOfGoodsSold, currency)} />
+                <StatCard label="Gross Profit" value={formatMoney(pnl.grossProfit, currency)} meta={`${pnl.grossMarginPercent}% margin`} />
+                <StatCard label="Refunds" value={formatMoney(pnl.refunds, currency)} />
+                <StatCard label="Expenses" value={formatMoney(pnl.expenses, currency)} />
+                <StatCard label="Delivery Payouts" value={formatMoney(pnl.deliveryPayouts, currency)} />
+                <StatCard label="Tax Collected" value={formatMoney(pnl.taxCollected, currency)} />
+                <StatCard label="Net Profit" value={formatMoney(pnl.netProfit, currency)} meta="Gross profit − expenses − payouts" />
+              </div>
+            </>
           )}
         </CardBody>
       </Card>
@@ -154,10 +165,18 @@ export function AccountingPage() {
             <dl className="kv-grid">
               <dt>Cash Position</dt>
               <dd>{formatMoney(balanceSheet.cashPosition, currency)}</dd>
-              <dt>Inventory Value</dt>
-              <dd>{formatMoney(balanceSheet.inventoryValue, currency)}</dd>
+              <dt>Inventory Value (Cost)</dt>
+              <dd>{formatMoney(balanceSheet.inventoryValueAtCost, currency)}</dd>
               <dt style={{ fontWeight: 650, color: "var(--text)" }}>Total Assets</dt>
               <dd style={{ fontWeight: 650 }}>{formatMoney(balanceSheet.totalAssets, currency)}</dd>
+              <dt>Tax Payable</dt>
+              <dd>{formatMoney(balanceSheet.taxPayable, currency)}</dd>
+              <dt>Gift Card Liability</dt>
+              <dd>{formatMoney(balanceSheet.giftCardLiability, currency)}</dd>
+              <dt style={{ fontWeight: 650, color: "var(--text)" }}>Total Liabilities</dt>
+              <dd style={{ fontWeight: 650 }}>{formatMoney(balanceSheet.totalLiabilities, currency)}</dd>
+              <dt style={{ fontWeight: 650, color: "var(--text)" }}>Net Position</dt>
+              <dd style={{ fontWeight: 650 }}>{formatMoney(balanceSheet.netPosition, currency)}</dd>
             </dl>
           )}
         </CardBody>
