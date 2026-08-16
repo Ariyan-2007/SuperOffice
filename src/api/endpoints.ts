@@ -6,28 +6,55 @@ import { isDemoMode } from "../demo/state";
 import { demoStore } from "../demo/store";
 import type {
   AdjustStockRequest,
+  ApiKeyResponse,
   AssignDeliveryAgentRequest,
+  AuditLogQuery,
+  AuditLogResponse,
   AuthResponse,
   BalanceSheetResponse,
+  BusinessDashboardResponse,
   BusinessResponse,
   CategoryResponse,
   CategoryTreeNode,
+  ContentBlockRequest,
+  ContentBlockResponse,
   CouponResponse,
+  CreateApiKeyRequest,
   CreateBusinessRequest,
   CreateCategoryRequest,
   CreateCouponRequest,
   CreateExpenseRequest,
+  CreatePromotionRequest,
   CreateProductRequest,
+  CreateShippingZoneRequest,
   CreateStaffRequest,
+  CreateWebhookRequest,
+  CustomerGroupRequest,
+  CustomerGroupResponse,
+  DecideReturnRequest,
   DeliveryAgentResponse,
   DeliveryAgentStatus,
   ExpenseResponse,
+  GiftCardResponse,
+  GrantStoreCreditRequest,
+  InvoiceResponse,
   InventoryValuationResponse,
+  IssueGiftCardRequest,
   LowStockProductResponse,
+  OrderQuery,
   OrderResponse,
+  PagedResult,
+  ProductImportResult,
+  ProductQuery,
   ProductResponse,
   ProfitAndLossResponse,
+  PromotionResponse,
+  ReturnResponse,
+  ReviewResponse,
+  ReviewStatus,
+  ShippingZoneResponse,
   StockMovementResponse,
+  StoreCreditBalanceResponse,
   TenantAnalyticsResponse,
   TenantResponse,
   TenantUsageResponse,
@@ -35,10 +62,14 @@ import type {
   UpdateCategoryRequest,
   UpdateCouponRequest,
   UpdateExpenseRequest,
+  UpdateOrderNoteRequest,
   UpdateOrderStatusRequest,
   UpdatePaymentStatusRequest,
   UpdateProductRequest,
+  UpdateShipmentRequest,
   UserSummaryResponse,
+  WebhookDeliveryResponse,
+  WebhookResponse,
 } from "../types/api";
 
 // ---------- public, unauthenticated ----------
@@ -87,6 +118,9 @@ export const analyticsApi = {
 };
 
 // ---------- superoffice businesses ----------
+// NOT paged, verified against the live API's OpenAPI spec — the blueprint's §9.18 banner claims
+// "every list endpoint," but this one genuinely still returns a bare array with no page/pageSize
+// params. Small list (one Tenant's Businesses), so this isn't a practical problem either way.
 
 export const superOfficeBusinessApi = {
   list: () => http.get<BusinessResponse[]>("/api/superoffice/businesses").then((r) => r.data),
@@ -128,9 +162,11 @@ export const categoryApi = {
 };
 
 // ---------- products ----------
+// Paged + server-side `search` as of 2026-08-16 (§9.18 breaking-change banner).
 
 export const productApi = {
-  list: (businessId: string) => http.get<ProductResponse[]>(`/api/businesses/${businessId}/products`).then((r) => r.data),
+  list: (businessId: string, query: ProductQuery = {}) =>
+    http.get<PagedResult<ProductResponse>>(`/api/businesses/${businessId}/products`, { params: query }).then((r) => r.data),
   get: (businessId: string, productId: string) =>
     http.get<ProductResponse>(`/api/businesses/${businessId}/products/${productId}`).then((r) => r.data),
   create: (businessId: string, data: CreateProductRequest) =>
@@ -152,13 +188,28 @@ export const productApi = {
       })
       .then((r) => r.data);
   },
+  // §7.14 — not JSON in/out like the rest of the API: import takes a file, export returns a
+  // CSV download, so both are special-cased here rather than the usual `.then(r => r.data)`.
+  importCsv: (businessId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<ProductImportResult>(`/api/businesses/${businessId}/products/import`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
+  exportCsv: (businessId: string) =>
+    http.get<string>(`/api/businesses/${businessId}/products/export`, { responseType: "text" }).then((r) => r.data),
 };
 
 // ---------- inventory ----------
 
 export const inventoryApi = {
-  stockMovements: (businessId: string, productId: string) =>
-    http.get<StockMovementResponse[]>(`/api/businesses/${businessId}/products/${productId}/stock-movements`).then((r) => r.data),
+  stockMovements: (businessId: string, productId: string, page = 1, pageSize = 100) =>
+    http
+      .get<PagedResult<StockMovementResponse>>(`/api/businesses/${businessId}/products/${productId}/stock-movements`, { params: { page, pageSize } })
+      .then((r) => r.data),
   adjustStock: (businessId: string, productId: string, data: AdjustStockRequest) =>
     http.post<ProductResponse>(`/api/businesses/${businessId}/products/${productId}/stock-adjustments`, data).then((r) => r.data),
   lowStock: (businessId: string) =>
@@ -225,10 +276,15 @@ export const deliveryAgentApi = {
 };
 
 // ---------- orders ----------
+// Paged + server-side filters as of 2026-08-16 (§9.18) — status/paymentStatus/search/from/to.
 
 export const orderApi = {
-  list: (businessId: string) => http.get<OrderResponse[]>(`/api/businesses/${businessId}/orders`).then((r) => r.data),
-  assignedToMe: (businessId: string) => http.get<OrderResponse[]>(`/api/businesses/${businessId}/orders/assigned-to-me`).then((r) => r.data),
+  list: (businessId: string, query: OrderQuery = {}) =>
+    http.get<PagedResult<OrderResponse>>(`/api/businesses/${businessId}/orders`, { params: query }).then((r) => r.data),
+  assignedToMe: (businessId: string, page = 1, pageSize = 25) =>
+    http
+      .get<PagedResult<OrderResponse>>(`/api/businesses/${businessId}/orders/assigned-to-me`, { params: { page, pageSize } })
+      .then((r) => r.data),
   get: (businessId: string, orderId: string) =>
     http.get<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}`).then((r) => r.data),
   setStatus: (businessId: string, orderId: string, data: UpdateOrderStatusRequest) =>
@@ -237,4 +293,142 @@ export const orderApi = {
     http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/payment-status`, data).then((r) => r.data),
   assignDelivery: (businessId: string, orderId: string, data: AssignDeliveryAgentRequest) =>
     http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/assign-delivery`, data).then((r) => r.data),
+  setShipment: (businessId: string, orderId: string, data: UpdateShipmentRequest) =>
+    http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/shipment`, data).then((r) => r.data),
+  setInternalNote: (businessId: string, orderId: string, data: UpdateOrderNoteRequest) =>
+    http.patch<OrderResponse>(`/api/businesses/${businessId}/orders/${orderId}/internal-note`, data).then((r) => r.data),
+  getInvoice: (businessId: string, orderId: string) =>
+    http.get<InvoiceResponse>(`/api/businesses/${businessId}/orders/${orderId}/invoice`).then((r) => r.data),
+};
+
+// ---------- returns / RMAs (added 2026-08-16, §9.21) ----------
+
+export const returnApi = {
+  list: (businessId: string, status: string | undefined, page = 1, pageSize = 25) =>
+    http
+      .get<PagedResult<ReturnResponse>>(`/api/businesses/${businessId}/returns`, { params: { status, page, pageSize } })
+      .then((r) => r.data),
+  get: (businessId: string, returnId: string) =>
+    http.get<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}`).then((r) => r.data),
+  decide: (businessId: string, returnId: string, data: DecideReturnRequest) =>
+    http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/decision`, data).then((r) => r.data),
+  markReceived: (businessId: string, returnId: string) =>
+    http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/received`, {}).then((r) => r.data),
+  refund: (businessId: string, returnId: string) =>
+    http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/refund`, {}).then((r) => r.data),
+};
+
+// ---------- reviews (added 2026-08-16, §9.25) ----------
+
+export const reviewApi = {
+  list: (businessId: string, status: string | undefined, page = 1, pageSize = 25) =>
+    http
+      .get<PagedResult<ReviewResponse>>(`/api/businesses/${businessId}/reviews`, { params: { status, page, pageSize } })
+      .then((r) => r.data),
+  setStatus: (businessId: string, reviewId: string, status: ReviewStatus) =>
+    http.patch<ReviewResponse>(`/api/businesses/${businessId}/reviews/${reviewId}/status`, { status }).then((r) => r.data),
+  reply: (businessId: string, reviewId: string, reply: string) =>
+    http.post<ReviewResponse>(`/api/businesses/${businessId}/reviews/${reviewId}/reply`, { reply }).then((r) => r.data),
+  remove: (businessId: string, reviewId: string) =>
+    http.delete<void>(`/api/businesses/${businessId}/reviews/${reviewId}`).then((r) => r.data),
+};
+
+// ---------- merchandising (added 2026-08-16, §9.20/§9.23/§9.24/§9.30, Admin-tier only) ----------
+
+// All five list endpoints below are paged, verified against the live API's OpenAPI spec (the
+// blueprint's abbreviated type block didn't show `PagedResult<T>` for any of these, but the
+// spec confirms every one of them takes page/pageSize and returns the envelope).
+
+export const promotionApi = {
+  list: (businessId: string, page = 1, pageSize = 100) =>
+    http.get<PagedResult<PromotionResponse>>(`/api/businesses/${businessId}/promotions`, { params: { page, pageSize } }).then((r) => r.data),
+  create: (businessId: string, data: CreatePromotionRequest) =>
+    http.post<PromotionResponse>(`/api/businesses/${businessId}/promotions`, data).then((r) => r.data),
+  update: (businessId: string, id: string, data: CreatePromotionRequest) =>
+    http.put<PromotionResponse>(`/api/businesses/${businessId}/promotions/${id}`, data).then((r) => r.data),
+  remove: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/promotions/${id}`).then((r) => r.data),
+};
+
+export const customerGroupApi = {
+  list: (businessId: string, page = 1, pageSize = 100) =>
+    http.get<PagedResult<CustomerGroupResponse>>(`/api/businesses/${businessId}/customer-groups`, { params: { page, pageSize } }).then((r) => r.data),
+  create: (businessId: string, data: CustomerGroupRequest) =>
+    http.post<CustomerGroupResponse>(`/api/businesses/${businessId}/customer-groups`, data).then((r) => r.data),
+  update: (businessId: string, id: string, data: CustomerGroupRequest) =>
+    http.put<CustomerGroupResponse>(`/api/businesses/${businessId}/customer-groups/${id}`, data).then((r) => r.data),
+  remove: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/customer-groups/${id}`).then((r) => r.data),
+  addMembers: (businessId: string, id: string, customerUserIds: string[]) =>
+    http.post<void>(`/api/businesses/${businessId}/customer-groups/${id}/members`, { customerUserIds }).then((r) => r.data),
+  removeMembers: (businessId: string, id: string, customerUserIds: string[]) =>
+    http.delete<void>(`/api/businesses/${businessId}/customer-groups/${id}/members`, { data: { customerUserIds } }).then((r) => r.data),
+};
+
+export const giftCardApi = {
+  list: (businessId: string, page = 1, pageSize = 100) =>
+    http.get<PagedResult<GiftCardResponse>>(`/api/businesses/${businessId}/gift-cards`, { params: { page, pageSize } }).then((r) => r.data),
+  issue: (businessId: string, data: IssueGiftCardRequest) =>
+    http.post<GiftCardResponse>(`/api/businesses/${businessId}/gift-cards`, data).then((r) => r.data),
+  deactivate: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/gift-cards/${id}`).then((r) => r.data),
+};
+
+export const storeCreditApi = {
+  statement: (businessId: string, customerUserId: string) =>
+    http.get<StoreCreditBalanceResponse>(`/api/businesses/${businessId}/customers/${customerUserId}/store-credit`).then((r) => r.data),
+  grant: (businessId: string, customerUserId: string, data: GrantStoreCreditRequest) =>
+    http.post<void>(`/api/businesses/${businessId}/customers/${customerUserId}/store-credit`, data).then((r) => r.data),
+};
+
+export const shippingZoneApi = {
+  list: (businessId: string, page = 1, pageSize = 100) =>
+    http.get<PagedResult<ShippingZoneResponse>>(`/api/businesses/${businessId}/shipping-zones`, { params: { page, pageSize } }).then((r) => r.data),
+  create: (businessId: string, data: CreateShippingZoneRequest) =>
+    http.post<ShippingZoneResponse>(`/api/businesses/${businessId}/shipping-zones`, data).then((r) => r.data),
+  update: (businessId: string, id: string, data: CreateShippingZoneRequest) =>
+    http.put<ShippingZoneResponse>(`/api/businesses/${businessId}/shipping-zones/${id}`, data).then((r) => r.data),
+  remove: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/shipping-zones/${id}`).then((r) => r.data),
+};
+
+export const contentApi = {
+  list: (businessId: string, type?: string, page = 1, pageSize = 100) =>
+    http.get<PagedResult<ContentBlockResponse>>(`/api/businesses/${businessId}/content`, { params: { type, page, pageSize } }).then((r) => r.data),
+  create: (businessId: string, data: ContentBlockRequest) =>
+    http.post<ContentBlockResponse>(`/api/businesses/${businessId}/content`, data).then((r) => r.data),
+  update: (businessId: string, id: string, data: ContentBlockRequest) =>
+    http.put<ContentBlockResponse>(`/api/businesses/${businessId}/content/${id}`, data).then((r) => r.data),
+  remove: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/content/${id}`).then((r) => r.data),
+};
+
+// ---------- audit log (added 2026-08-16, §9.35, Admin-tier only) ----------
+
+export const auditLogApi = {
+  list: (businessId: string, query: AuditLogQuery = {}) =>
+    http.get<PagedResult<AuditLogResponse>>(`/api/businesses/${businessId}/audit-log`, { params: query }).then((r) => r.data),
+};
+
+// ---------- dashboard (added 2026-08-16, §9.32, Admin-tier only) ----------
+
+export const dashboardApi = {
+  get: (businessId: string, from?: string, to?: string) =>
+    http.get<BusinessDashboardResponse>(`/api/businesses/${businessId}/analytics/dashboard`, { params: { from, to } }).then((r) => r.data),
+};
+
+// ---------- integrations: webhooks & API keys (added 2026-08-16, §9.39, SuperOffice/TenantOwner only) ----------
+
+export const webhookApi = {
+  events: () => http.get<string[]>("/api/integrations/webhooks/events").then((r) => r.data),
+  list: (page = 1, pageSize = 25) =>
+    http.get<PagedResult<WebhookResponse>>("/api/integrations/webhooks", { params: { page, pageSize } }).then((r) => r.data),
+  create: (data: CreateWebhookRequest) => http.post<WebhookResponse>("/api/integrations/webhooks", data).then((r) => r.data),
+  remove: (webhookId: string) => http.delete<void>(`/api/integrations/webhooks/${webhookId}`).then((r) => r.data),
+  deliveries: (webhookId: string, page = 1, pageSize = 25) =>
+    http
+      .get<PagedResult<WebhookDeliveryResponse>>(`/api/integrations/webhooks/${webhookId}/deliveries`, { params: { page, pageSize } })
+      .then((r) => r.data),
+};
+
+export const apiKeyApi = {
+  list: (page = 1, pageSize = 25) =>
+    http.get<PagedResult<ApiKeyResponse>>("/api/integrations/api-keys", { params: { page, pageSize } }).then((r) => r.data),
+  create: (data: CreateApiKeyRequest) => http.post<ApiKeyResponse>("/api/integrations/api-keys", data).then((r) => r.data),
+  remove: (apiKeyId: string) => http.delete<void>(`/api/integrations/api-keys/${apiKeyId}`).then((r) => r.data),
 };

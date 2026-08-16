@@ -1,17 +1,21 @@
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { authenticate, resolveRoute } from "./router";
+import { demoStore } from "./store";
 
 // Simulated network latency so loading states in the UI still feel real.
 const MIN_DELAY_MS = 180;
 const MAX_DELAY_MS = 420;
 
-function parseBody(data: unknown): unknown {
+async function parseBody(data: unknown, pathname: string): Promise<unknown> {
   if (data == null) return {};
   if (typeof FormData !== "undefined" && data instanceof FormData) {
     const file = data.get("file");
-    // The real API stores the upload and returns its own URL; the demo backend has nowhere
-    // to persist a file, so an object URL stands in as "the server's generated filename".
-    return { url: file instanceof File ? URL.createObjectURL(file) : "" };
+    if (!(file instanceof File)) return { url: "" };
+    // The CSV import route needs the file's actual text content; every other multipart upload
+    // (product images) is stored nowhere in the demo backend, so an object URL stands in for
+    // "the server's generated filename".
+    if (pathname.endsWith("/import")) return { csvText: await file.text() };
+    return { url: URL.createObjectURL(file) };
   }
   if (typeof data === "string") {
     if (data.trim() === "") return {};
@@ -50,14 +54,18 @@ function buildError(config: InternalAxiosRequestConfig, status: number, data: un
   return error;
 }
 
+const AUDITED_PREFIX = "/api/businesses/";
+
 // Stands in for the real network transport when Project Showcase mode is active — resolves
 // every request against the in-browser DemoStore instead of the Vastora API. Installed as
 // `http.defaults.adapter` (see api/client.ts) once connectivity checking confirms there's no
 // backend to talk to.
 export const demoAdapter: AxiosAdapter = (config) =>
   new Promise((resolve, reject) => {
+    const startedAt = Date.now();
     const delay = MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS);
-    setTimeout(() => {
+
+    (async () => {
       try {
         const method = (config.method ?? "get").toUpperCase();
         const pathname = (config.url ?? "").split("?")[0];
@@ -83,7 +91,32 @@ export const demoAdapter: AxiosAdapter = (config) =>
           }
         }
 
-        const result = match.route.handler({ params: match.params, query, body: parseBody(config.data), auth });
+        const body = await parseBody(config.data, pathname);
+
+        await new Promise((r) => setTimeout(r, delay));
+
+        const result = match.route.handler({ params: match.params, query, body, auth });
+
+        // Every mutating request against a Business-scoped route is recorded centrally here —
+        // BACKOFFICE_FRONTEND_BLUEPRINT.md §7.15/§9.35 — so the audit log has real data for
+        // every area without each individual route handler needing to remember to log itself.
+        if (method !== "GET" && auth && pathname.startsWith(AUDITED_PREFIX) && result.status >= 200 && result.status < 300) {
+          const resourceId = Object.values(match.params).at(-1) ?? null;
+          demoStore.recordAudit({
+            userId: auth.userId,
+            userEmail: auth.user.email,
+            role: auth.user.role,
+            method,
+            path: pathname,
+            routeTemplate: match.route.path,
+            statusCode: result.status,
+            ipAddress: "127.0.0.1",
+            resourceId,
+            durationMs: Date.now() - startedAt,
+            createdAt: new Date().toISOString(),
+          });
+        }
+
         if (result.status >= 200 && result.status < 300) {
           resolve(buildResponse(config, result.status, result.data));
         } else {
@@ -98,5 +131,5 @@ export const demoAdapter: AxiosAdapter = (config) =>
           }),
         );
       }
-    }, delay);
+    })();
   });

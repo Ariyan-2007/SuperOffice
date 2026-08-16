@@ -7,6 +7,7 @@ import { PageHeader, StatCard } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { DataTable, type Column } from "../../components/DataTable";
 import { PageLoader } from "../../components/Feedback";
+import { InfoBanner } from "../../components/Feedback";
 import { formatMoney } from "../../lib/format";
 import type { LowStockProductResponse } from "../../types/api";
 
@@ -45,8 +46,17 @@ export function InventoryPage() {
 
       <div className="stat-grid">
         <StatCard label="Low Stock Products" value={lowStock?.length ?? 0} meta="At or below reorder threshold" />
-        <StatCard label="Total Inventory Value" value={formatMoney(valuation?.totalValue ?? 0, currency)} />
+        <StatCard label="Inventory Value (Cost)" value={formatMoney(valuation?.totalValueAtCost ?? 0, currency)} meta="What the balance sheet uses" />
+        <StatCard label="Inventory Value (Retail)" value={formatMoney(valuation?.totalValueAtRetail ?? 0, currency)} />
+        <StatCard label="Potential Margin" value={formatMoney(valuation?.potentialMargin ?? 0, currency)} />
       </div>
+
+      {!!valuation?.unvaluedProductCount && (
+        <InfoBanner>
+          {valuation.unvaluedProductCount} product{valuation.unvaluedProductCount === 1 ? "" : "s"} in stock have no cost price recorded — the cost
+          figures above understate reality. Add a cost price on each product to fix this.
+        </InfoBanner>
+      )}
 
       <Card>
         <CardHeader title="Low Stock" actions={<AlertTriangle size={15} color="var(--warning)" />} />
@@ -74,14 +84,16 @@ export function InventoryPage() {
               <thead>
                 <tr>
                   <th>Category</th>
-                  <th>Value</th>
+                  <th>Value at Cost</th>
+                  <th>Value at Retail</th>
                 </tr>
               </thead>
               <tbody>
                 {valuation.byCategory.map((entry) => (
                   <tr key={entry.categoryId}>
                     <td>{categoryName(entry.categoryId)}</td>
-                    <td style={{ fontWeight: 600 }}>{formatMoney(entry.value, currency)}</td>
+                    <td style={{ fontWeight: 600 }}>{formatMoney(entry.valueAtCost, currency)}</td>
+                    <td className="cell-muted">{formatMoney(entry.valueAtRetail, currency)}</td>
                   </tr>
                 ))}
               </tbody>

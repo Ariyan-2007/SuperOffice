@@ -1,13 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Boxes, ImagePlus, Package, Pencil, Plus, Rocket, Trash2, X } from "lucide-react";
+import { Boxes, Download, ImagePlus, Package, Pencil, Plus, Rocket, Search, Trash2, Upload, X } from "lucide-react";
 import { productApi, categoryApi, inventoryApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
 import { useBusiness } from "../../context/BusinessContext";
 import { useAuth } from "../../auth/AuthContext";
 import { ADMIN_LEVEL } from "../../routes/backofficeRoles";
+import { usePagedQuery } from "../../lib/usePagedQuery";
+import { useDebouncedValue } from "../../lib/useDebouncedValue";
 import { PageHeader } from "../../components/StatCard";
 import { Button } from "../../components/Button";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -19,6 +21,7 @@ import { formatDateTime, formatMoney } from "../../lib/format";
 import type {
   AdjustStockRequest,
   CreateProductRequest,
+  ProductImportResult,
   ProductResponse,
   ProductStatus,
   ProductVariantRequest,
@@ -39,6 +42,15 @@ interface ProductForm {
   images: string;
   tags: string;
   variants: ProductVariantRequest[];
+  costPrice: string;
+  brand: string;
+  barcode: string;
+  weightKg: string;
+  metaTitle: string;
+  metaDescription: string;
+  isFeatured: boolean;
+  sortWeight: number;
+  taxClass: string;
 }
 
 const STATUS_OPTIONS: ProductStatus[] = ["Draft", "Active", "OutOfStock", "Archived"];
@@ -50,12 +62,20 @@ export function ProductsPage() {
   const { notify } = useToast();
   const queryClient = useQueryClient();
   const canDelete = ADMIN_LEVEL.includes(user!.role);
+  const canImportExport = ADMIN_LEVEL.includes(user!.role);
   const [statusFilter, setStatusFilter] = useState<ProductStatus | "All">("All");
+  const [searchInput, setSearchInput] = useState("");
+  const search = useDebouncedValue(searchInput, 300);
   const [editing, setEditing] = useState<ProductResponse | "new" | null>(null);
   const [deleting, setDeleting] = useState<ProductResponse | null>(null);
   const [adjusting, setAdjusting] = useState<ProductResponse | null>(null);
+  const [importResult, setImportResult] = useState<ProductImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: products, isLoading } = useQuery({ queryKey: ["products", businessId], queryFn: () => productApi.list(businessId) });
+  const { items: products, isLoading, paginationProps } = usePagedQuery(
+    ["products", businessId, search],
+    (page, pageSize) => productApi.list(businessId, { search: search || undefined, page, pageSize }),
+  );
   const { data: categories } = useQuery({ queryKey: ["categories", businessId], queryFn: () => categoryApi.list(businessId) });
 
   const categoryName = useMemo(() => {
@@ -104,7 +124,34 @@ export function ProductsPage() {
     onError: (err) => notify(err instanceof ApiError ? err.message : "Could not delete product.", "error"),
   });
 
-  const filtered = (products ?? []).filter((p) => statusFilter === "All" || p.status === statusFilter);
+  const importMutation = useMutation({
+    mutationFn: (file: File) => productApi.importCsv(businessId, file),
+    onSuccess: (result) => {
+      invalidate();
+      setImportResult(result);
+      notify(`Import finished — ${result.created} created, ${result.updated} updated.`, "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not import products.", "error"),
+  });
+
+  const exportCsv = async () => {
+    try {
+      const csv = await productApi.exportCsv(businessId);
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${business?.slug ?? "products"}-products.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Could not export products.", "error");
+    }
+  };
+
+  // Products only take a server-side `search` param per the blueprint — status is filtered
+  // within whatever page came back, same as before pagination existed.
+  const filtered = products.filter((p) => statusFilter === "All" || p.status === statusFilter);
 
   const columns: Column<ProductResponse>[] = [
     {
@@ -131,6 +178,11 @@ export function ProductsPage() {
           )}
         </div>
       ),
+    },
+    {
+      key: "margin",
+      header: "Margin",
+      render: (p) => (p.unitMargin != null ? formatMoney(p.unitMargin, business?.currency ?? "USD") : <span className="cell-muted">No cost set</span>),
     },
     {
       key: "stock",
@@ -198,13 +250,45 @@ export function ProductsPage() {
         title="Products"
         subtitle="New products start as Draft and stay hidden from the Shop until you publish them."
         actions={
-          <Button variant="primary" onClick={() => setEditing("new")} disabled={!categories?.length}>
-            <Plus size={14} /> New product
-          </Button>
+          <>
+            {canImportExport && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) importMutation.mutate(file);
+                  }}
+                />
+                <Button variant="secondary" loading={importMutation.isPending} onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={14} /> Import CSV
+                </Button>
+                <Button variant="secondary" onClick={exportCsv}>
+                  <Download size={14} /> Export CSV
+                </Button>
+              </>
+            )}
+            <Button variant="primary" onClick={() => setEditing("new")} disabled={!categories?.length}>
+              <Plus size={14} /> New product
+            </Button>
+          </>
         }
       />
 
       <div className="filter-bar">
+        <div style={{ position: "relative" }}>
+          <Search size={14} style={{ position: "absolute", left: 11, top: 12, color: "var(--text-faint)" }} />
+          <Input
+            style={{ paddingLeft: 32, minWidth: 220 }}
+            placeholder="Search name or SKU…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </div>
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ProductStatus | "All")}>
           <option value="All">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
@@ -216,9 +300,9 @@ export function ProductsPage() {
       {!categories?.length ? (
         <EmptyState icon={Package} title="Create A Category First" description="Products need a category to belong to." />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Package} title="No Products" description="Try a different status filter, or create a new product." />
+        <EmptyState icon={Package} title="No Products" description="Try a different search or status filter, or create a new product." />
       ) : (
-        <DataTable columns={columns} rows={filtered} rowKey={(p) => p.id} />
+        <DataTable columns={columns} rows={filtered} rowKey={(p) => p.id} pagination={paginationProps} />
       )}
 
       {editing && categories && (
@@ -240,6 +324,28 @@ export function ProductsPage() {
           onClose={() => setAdjusting(null)}
           onAdjusted={() => invalidate()}
         />
+      )}
+
+      {importResult && (
+        <Modal open onClose={() => setImportResult(null)} title="Import Results" footer={<Button variant="primary" onClick={() => setImportResult(null)}>Done</Button>}>
+          <div className="section-stack">
+            <div className="stat-grid">
+              <div className="stat-card"><div className="stat-label">Created</div><div className="stat-value">{importResult.created}</div></div>
+              <div className="stat-card"><div className="stat-label">Updated</div><div className="stat-value">{importResult.updated}</div></div>
+              <div className="stat-card"><div className="stat-label">Skipped</div><div className="stat-value">{importResult.skipped}</div></div>
+            </div>
+            {importResult.errors.length > 0 && (
+              <div>
+                <div className="form-label" style={{ marginBottom: 8 }}>Errors</div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "var(--danger)", display: "flex", flexDirection: "column", gap: 4 }}>
+                  {importResult.errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       <ConfirmDialog
@@ -300,6 +406,15 @@ function ProductModal({
           images: product.images.join(", "),
           tags: product.tags.join(", "),
           variants: product.variants,
+          costPrice: product.costPrice != null ? String(product.costPrice) : "",
+          brand: product.brand,
+          barcode: product.barcode,
+          weightKg: product.weightKg != null ? String(product.weightKg) : "",
+          metaTitle: product.metaTitle,
+          metaDescription: product.metaDescription,
+          isFeatured: product.isFeatured,
+          sortWeight: product.sortWeight,
+          taxClass: product.taxClass,
         }
       : {
           categoryId: categories[0]?.id ?? "",
@@ -315,6 +430,15 @@ function ProductModal({
           images: "",
           tags: "",
           variants: [],
+          costPrice: "",
+          brand: "",
+          barcode: "",
+          weightKg: "",
+          metaTitle: "",
+          metaDescription: "",
+          isFeatured: false,
+          sortWeight: 0,
+          taxClass: "",
         },
   });
 
@@ -338,6 +462,8 @@ function ProductModal({
     const reorderThreshold = values.reorderThreshold.trim() === "" ? null : Number(values.reorderThreshold);
     const reorderQuantity = values.reorderQuantity.trim() === "" ? null : Number(values.reorderQuantity);
     const variants = values.variants.length ? values.variants : null;
+    const costPrice = values.costPrice.trim() === "" ? null : Number(values.costPrice);
+    const weightKg = values.weightKg.trim() === "" ? null : Number(values.weightKg);
 
     if (product) {
       onUpdate(product.id, {
@@ -354,6 +480,15 @@ function ProductModal({
         images,
         tags,
         variants,
+        costPrice,
+        brand: values.brand,
+        barcode: values.barcode,
+        weightKg,
+        metaTitle: values.metaTitle,
+        metaDescription: values.metaDescription,
+        isFeatured: values.isFeatured,
+        sortWeight: values.sortWeight,
+        taxClass: values.taxClass,
       });
     } else {
       onCreate({
@@ -368,6 +503,15 @@ function ProductModal({
         images,
         tags,
         variants,
+        costPrice,
+        brand: values.brand,
+        barcode: values.barcode,
+        weightKg,
+        metaTitle: values.metaTitle,
+        metaDescription: values.metaDescription,
+        isFeatured: values.isFeatured,
+        sortWeight: values.sortWeight,
+        taxClass: values.taxClass,
       });
     }
   });
@@ -405,6 +549,9 @@ function ProductModal({
           </Field>
           <Field label="Compare-At Price" optional>
             <Input type="number" step="0.01" min="0" {...register("compareAtPrice")} />
+          </Field>
+          <Field label="Cost Price" optional hint="Drives margin, COGS and the balance sheet — the single highest-value field to keep accurate.">
+            <Input type="number" step="0.01" min="0" {...register("costPrice")} />
           </Field>
           {product ? (
             <Field label="Stock Quantity" hint="Use the Adjust Stock action on the product list to change this — every change is logged.">
@@ -485,6 +632,38 @@ function ProductModal({
         </div>
 
         <div>
+          <div className="form-label" style={{ marginBottom: 8 }}>Merchandising &amp; SEO</div>
+          <div className="form-grid">
+            <Field label="Brand" optional>
+              <Input {...register("brand")} />
+            </Field>
+            <Field label="Barcode" optional>
+              <Input {...register("barcode")} />
+            </Field>
+            <Field label="Weight (kg)" optional>
+              <Input type="number" step="0.01" min="0" {...register("weightKg")} />
+            </Field>
+            <Field label="Tax Class" optional hint="Resolved against Business.tax.classRates">
+              <Input {...register("taxClass")} placeholder="standard" />
+            </Field>
+            <Field label="Sort Weight" optional hint="Drives the storefront's Relevance sort">
+              <Input type="number" {...register("sortWeight", { valueAsNumber: true })} />
+            </Field>
+            <Field label="Featured">
+              <label className="checkbox-row" style={{ height: 38 }}>
+                <input type="checkbox" {...register("isFeatured")} /> Show in featured placements
+              </label>
+            </Field>
+            <Field label="Meta Title" optional className="span-2">
+              <Input {...register("metaTitle")} />
+            </Field>
+            <Field label="Meta Description" optional className="span-2">
+              <Textarea rows={2} {...register("metaDescription")} />
+            </Field>
+          </div>
+        </div>
+
+        <div>
           <div className="form-label" style={{ marginBottom: 8 }}>
             Variants <span className="optional">(optional — catalog-only, checkout still uses the base product)</span>
           </div>
@@ -548,7 +727,7 @@ function StockModal({
 
   const { data: movements, isLoading } = useQuery({
     queryKey: ["stock-movements", businessId, product.id],
-    queryFn: () => inventoryApi.stockMovements(businessId, product.id),
+    queryFn: () => inventoryApi.stockMovements(businessId, product.id, 1, 100).then((r) => r.items),
   });
 
   const adjustMutation = useMutation({

@@ -1,9 +1,12 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useBusiness } from "../context/BusinessContext";
+import { useBusinessId } from "../context/useBusinessId";
 import { useAuth } from "../auth/AuthContext";
 import { GuestOnly, RequireAuth, RoleRoute } from "./guards";
 import { ADMIN_LEVEL, STAFF_LEVEL } from "./backofficeRoles";
 import { buildBackOfficeNav } from "../layouts/backofficeNav";
+import { returnApi, reviewApi } from "../api/endpoints";
 import { AppLayout } from "../layouts/AppLayout";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { DeliveryAgentLayout } from "../layouts/DeliveryAgentLayout";
@@ -27,6 +30,13 @@ import { OrdersPage } from "../pages/backoffice/OrdersPage";
 import { OrderDetailPage } from "../pages/backoffice/OrderDetailPage";
 import { MyDeliveriesPage } from "../pages/backoffice/MyDeliveriesPage";
 import { MyStatusPage } from "../pages/backoffice/MyStatusPage";
+import { ReturnsPage } from "../pages/backoffice/ReturnsPage";
+import { ReviewsPage } from "../pages/backoffice/ReviewsPage";
+import { PromotionsPage } from "../pages/backoffice/PromotionsPage";
+import { GiftCardsPage } from "../pages/backoffice/GiftCardsPage";
+import { ShippingZonesPage } from "../pages/backoffice/ShippingZonesPage";
+import { StorefrontContentPage } from "../pages/backoffice/StorefrontContentPage";
+import { AuditLogPage } from "../pages/backoffice/AuditLogPage";
 
 export function BackOfficeRoutes() {
   const { status, error, business } = useBusiness();
@@ -80,6 +90,20 @@ export function BackOfficeRoutes() {
 
 function AuthenticatedBackOffice({ businessName, logoUrl }: { businessName: string; logoUrl: string | null }) {
   const { user } = useAuth();
+  const businessId = useBusinessId();
+  const staffLevel = !!user && STAFF_LEVEL.includes(user.role);
+
+  const pendingReturns = useQuery({
+    queryKey: ["nav-pending-returns", businessId],
+    queryFn: () => returnApi.list(businessId, "Requested", 1, 1).then((r) => r.totalCount),
+    enabled: staffLevel && user?.role !== "DeliveryAgent",
+  });
+  const pendingReviews = useQuery({
+    queryKey: ["nav-pending-reviews", businessId],
+    queryFn: () => reviewApi.list(businessId, "Pending", 1, 1).then((r) => r.totalCount),
+    enabled: staffLevel && user?.role !== "DeliveryAgent",
+  });
+
   if (!user) return <PageLoader />;
 
   if (user.role === "DeliveryAgent") {
@@ -95,7 +119,7 @@ function AuthenticatedBackOffice({ businessName, logoUrl }: { businessName: stri
     );
   }
 
-  const nav = buildBackOfficeNav(user.role);
+  const nav = buildBackOfficeNav(user.role, { pendingReturns: pendingReturns.data, pendingReviews: pendingReviews.data });
 
   return (
     <Routes>
@@ -179,6 +203,62 @@ function AuthenticatedBackOffice({ businessName, logoUrl }: { businessName: stri
           element={
             <RoleRoute allow={STAFF_LEVEL} userRole={user.role}>
               <OrderDetailPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="returns"
+          element={
+            <RoleRoute allow={STAFF_LEVEL} userRole={user.role}>
+              <ReturnsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="reviews"
+          element={
+            <RoleRoute allow={STAFF_LEVEL} userRole={user.role}>
+              <ReviewsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="promotions"
+          element={
+            <RoleRoute allow={ADMIN_LEVEL} userRole={user.role}>
+              <PromotionsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="gift-cards"
+          element={
+            <RoleRoute allow={ADMIN_LEVEL} userRole={user.role}>
+              <GiftCardsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="shipping-zones"
+          element={
+            <RoleRoute allow={ADMIN_LEVEL} userRole={user.role}>
+              <ShippingZonesPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="content"
+          element={
+            <RoleRoute allow={ADMIN_LEVEL} userRole={user.role}>
+              <StorefrontContentPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="audit-log"
+          element={
+            <RoleRoute allow={ADMIN_LEVEL} userRole={user.role}>
+              <AuditLogPage />
             </RoleRoute>
           }
         />

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ClipboardList, PackageSearch, Ticket } from "lucide-react";
-import { productApi, categoryApi, couponApi, orderApi, inventoryApi, accountingApi } from "../../api/endpoints";
+import { Link } from "react-router-dom";
+import { AlertTriangle, PackageSearch, RotateCcw, TrendingUp } from "lucide-react";
+import { dashboardApi, inventoryApi, orderApi } from "../../api/endpoints";
 import { useBusinessId } from "../../context/useBusinessId";
 import { useBusiness } from "../../context/BusinessContext";
 import { useAuth } from "../../auth/AuthContext";
@@ -8,124 +9,155 @@ import { ADMIN_LEVEL } from "../../routes/backofficeRoles";
 import { PageHeader, StatCard } from "../../components/StatCard";
 import { PageLoader } from "../../components/Feedback";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { OrderStatusBadge } from "../../components/Badge";
-import { formatDateTime, formatMoney } from "../../lib/format";
-import { Link } from "react-router-dom";
+import { formatMoney } from "../../lib/format";
 
-// Low-stock count and a trailing-30-days net profit figure are now real requests
-// (BACKOFFICE_FRONTEND_BLUEPRINT.md §8, updated 2026-08-15) rather than computed client-side.
-// Staff can't hit the Admin-tier accounting endpoint, so they only see low-stock + order counts.
+// Replaced 2026-08-16 (BACKOFFICE_FRONTEND_BLUEPRINT.md §7.16/§8) — the dashboard is now one
+// request (`GET .../analytics/dashboard`) instead of assembling itself from six parallel
+// queries. It's Admin-tier only (financial data), so Staff sessions fall back to a
+// low-stock/order-count widget built from endpoints they can actually call.
 export function DashboardPage() {
   const businessId = useBusinessId();
   const { business } = useBusiness();
   const { user } = useAuth();
-  const canSeeAccounting = ADMIN_LEVEL.includes(user!.role);
+  const canSeeDashboard = ADMIN_LEVEL.includes(user!.role);
 
-  const products = useQuery({ queryKey: ["products", businessId], queryFn: () => productApi.list(businessId) });
-  const categories = useQuery({ queryKey: ["categories", businessId], queryFn: () => categoryApi.list(businessId) });
-  const coupons = useQuery({ queryKey: ["coupons", businessId], queryFn: () => couponApi.list(businessId) });
-  const orders = useQuery({ queryKey: ["orders", businessId], queryFn: () => orderApi.list(businessId) });
+  const dashboard = useQuery({
+    queryKey: ["dashboard", businessId],
+    queryFn: () => dashboardApi.get(businessId),
+    enabled: canSeeDashboard,
+  });
   const lowStock = useQuery({ queryKey: ["inventory-low-stock", businessId], queryFn: () => inventoryApi.lowStock(businessId) });
-  const pnl = useQuery({
-    queryKey: ["pnl-30d", businessId],
-    queryFn: () => accountingApi.profitAndLoss(businessId, new Date(Date.now() - 30 * 86_400_000).toISOString(), new Date().toISOString()),
-    enabled: canSeeAccounting,
+  const orderCount = useQuery({
+    queryKey: ["order-count", businessId],
+    queryFn: () => orderApi.list(businessId, { pageSize: 1 }).then((r) => r.totalCount),
+    enabled: !canSeeDashboard,
   });
 
-  if (products.isLoading || categories.isLoading || coupons.isLoading || orders.isLoading || lowStock.isLoading) return <PageLoader />;
+  if ((canSeeDashboard && dashboard.isLoading) || lowStock.isLoading) return <PageLoader />;
 
-  const activeProducts = (products.data ?? []).filter((p) => p.status === "Active");
-  const activeCoupons = (coupons.data ?? []).filter((c) => c.isActive);
-  const openOrders = (orders.data ?? []).filter((o) => !["Delivered", "Cancelled", "Refunded"].includes(o.status));
-  const recentOrders = [...(orders.data ?? [])].sort((a, b) => +new Date(b.placedAt) - +new Date(a.placedAt)).slice(0, 6);
-  const lowStockItems = lowStock.data ?? [];
+  const currency = business?.currency ?? dashboard.data?.currency ?? "USD";
 
   return (
     <div className="section-stack">
       <PageHeader title={`Welcome back, ${user?.fullName?.split(" ")[0] ?? ""}`} subtitle={business?.name ?? "Dashboard"} />
 
-      <div className="stat-grid">
-        <StatCard label="Open Orders" value={openOrders.length} meta={`${orders.data?.length ?? 0} total`} />
-        <StatCard label="Active Products" value={activeProducts.length} meta={`${products.data?.length ?? 0} total`} />
-        <StatCard
-          label="Low Stock"
-          value={lowStockItems.length}
-          meta={lowStockItems.length ? "At or below reorder threshold" : "All stocked"}
-        />
-        {canSeeAccounting ? (
-          <StatCard
-            label="Net Profit (30d)"
-            value={pnl.data ? formatMoney(pnl.data.netProfit, business?.currency ?? "USD") : "—"}
-          />
-        ) : (
-          <StatCard label="Active Coupons" value={activeCoupons.length} meta={`${categories.data?.length ?? 0} categories`} />
-        )}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
-        <Card>
-          <CardHeader title="Recent Orders" actions={<Link to="/orders" className="btn btn-ghost btn-sm">View all</Link>} />
-          <CardBody style={{ padding: 0 }}>
-            {recentOrders.length === 0 ? (
-              <div className="empty-state">
-                <ClipboardList className="empty-state-icon" strokeWidth={1.4} />
-                <div className="empty-state-title">No Orders Yet</div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {recentOrders.map((o) => (
-                  <Link
-                    key={o.id}
-                    to={`/orders/${o.id}`}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "13px 20px",
-                      borderBottom: "1px solid var(--border)",
-                      color: "var(--text)",
-                      textDecoration: "none",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13.5 }}>{o.orderNumber}</div>
-                      <div className="text-muted" style={{ fontSize: 12 }}>{formatDateTime(o.placedAt)}</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{formatMoney(o.total, business?.currency ?? "USD")}</span>
-                      <OrderStatusBadge status={o.status} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardBody>
-        </Card>
-
-        <Card padded>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 620, fontSize: 13.5 }}>
-              <AlertTriangle size={15} color="var(--warning)" /> Needs attention
-            </div>
-            {lowStockItems.length === 0 && activeCoupons.length === 0 && (
-              <div className="text-muted" style={{ fontSize: 13 }}>Nothing urgent right now.</div>
-            )}
-            {lowStockItems.slice(0, 4).map((p) => (
-              <Link key={p.productId} to="/inventory" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "var(--text)" }}>
-                <PackageSearch size={14} color="var(--text-faint)" />
-                <span style={{ flex: 1 }}>{p.productName}</span>
-                <span className="text-muted">{p.stockQuantity} left</span>
-              </Link>
-            ))}
-            {activeCoupons.length > 0 && (
-              <Link to="/coupons" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "var(--text)" }}>
-                <Ticket size={14} color="var(--text-faint)" />
-                <span>{activeCoupons.length} active coupon{activeCoupons.length === 1 ? "" : "s"}</span>
-              </Link>
-            )}
+      {!canSeeDashboard || !dashboard.data ? (
+        <div className="stat-grid">
+          <StatCard label="Total Orders" value={orderCount.data ?? "—"} />
+          <StatCard label="Low Stock" value={lowStock.data?.length ?? 0} meta={lowStock.data?.length ? "At or below reorder threshold" : "All stocked"} />
+        </div>
+      ) : (
+        <>
+          <div className="stat-grid">
+            <StatCard label="Revenue (30d)" value={formatMoney(dashboard.data.revenue, currency)} meta="Delivered orders only" />
+            <StatCard label="Gross Profit" value={formatMoney(dashboard.data.grossProfit, currency)} />
+            <StatCard label="Avg Order Value" value={formatMoney(dashboard.data.averageOrderValue, currency)} />
+            <StatCard label="Repeat Customer Rate" value={`${dashboard.data.repeatCustomerRate}%`} meta={`${dashboard.data.uniqueCustomers} unique customers`} />
           </div>
-        </Card>
-      </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, alignItems: "start" }}>
+            <Card>
+              <CardHeader title="Daily Sales" actions={<TrendingUp size={15} color="var(--text-faint)" />} />
+              <CardBody>
+                <DailySalesChart points={dashboard.data.dailySales} currency={currency} />
+              </CardBody>
+            </Card>
+
+            <Card padded>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 620, fontSize: 13.5 }}>
+                  <AlertTriangle size={15} color="var(--warning)" /> Needs attention
+                </div>
+                {dashboard.data.lowStockCount === 0 && dashboard.data.pendingReturns === 0 && (
+                  <div className="text-muted" style={{ fontSize: 13 }}>Nothing urgent right now.</div>
+                )}
+                {dashboard.data.lowStockCount > 0 && (
+                  <Link to="/inventory" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "var(--text)" }}>
+                    <PackageSearch size={14} color="var(--text-faint)" />
+                    <span style={{ flex: 1 }}>{dashboard.data.lowStockCount} product{dashboard.data.lowStockCount === 1 ? "" : "s"} low on stock</span>
+                  </Link>
+                )}
+                {dashboard.data.pendingReturns > 0 && (
+                  <Link to="/returns" style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "var(--text)" }}>
+                    <RotateCcw size={14} color="var(--text-faint)" />
+                    <span style={{ flex: 1 }}>{dashboard.data.pendingReturns} return{dashboard.data.pendingReturns === 1 ? "" : "s"} awaiting decision</span>
+                  </Link>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <Card>
+              <CardHeader title="Top Products" />
+              <CardBody style={{ padding: dashboard.data.topProducts.length ? 0 : undefined }}>
+                {dashboard.data.topProducts.length === 0 ? (
+                  <p className="text-muted" style={{ fontSize: 13, padding: 20 }}>No sales in this window yet.</p>
+                ) : (
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Qty Sold</th>
+                        <th>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.data.topProducts.map((p) => (
+                        <tr key={p.productId}>
+                          <td style={{ fontWeight: 600 }}>{p.productName}</td>
+                          <td>{p.quantitySold}</td>
+                          <td>{formatMoney(p.revenue, currency)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader title="Status Breakdown" />
+              <CardBody>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {dashboard.data.statusBreakdown.map((s) => (
+                    <div key={s.status} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                      <span className="text-muted">{s.status}</span>
+                      <span style={{ fontWeight: 600 }}>{s.count}</span>
+                    </div>
+                  ))}
+                  {dashboard.data.statusBreakdown.length === 0 && <p className="text-muted" style={{ fontSize: 13 }}>No orders in this window yet.</p>}
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DailySalesChart({ points, currency }: { points: { date: string; revenue: number; orderCount: number }[]; currency: string }) {
+  if (points.length === 0) return <p className="text-muted" style={{ fontSize: 13 }}>No sales in this window yet.</p>;
+  const max = Math.max(...points.map((p) => p.revenue), 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 140 }}>
+      {points.map((p) => (
+        <div
+          key={p.date}
+          title={`${p.date}: ${formatMoney(p.revenue, currency)} · ${p.orderCount} order${p.orderCount === 1 ? "" : "s"}`}
+          style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}
+        >
+          <div
+            style={{
+              background: "var(--brand-500)",
+              borderRadius: "3px 3px 0 0",
+              height: `${Math.max(2, (p.revenue / max) * 100)}%`,
+              minHeight: 2,
+            }}
+          />
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import clsx from "clsx";
 import { Inbox } from "lucide-react";
+import { Pagination } from "./Pagination";
+import type { PaginationProps } from "../lib/usePagedQuery";
 
 export interface Column<T> {
   key: string;
@@ -16,9 +18,10 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   emptyTitle?: string;
   emptyDescription?: string;
+  pagination?: PaginationProps;
 }
 
-export function DataTable<T>({ columns, rows, rowKey, onRowClick, emptyTitle, emptyDescription }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, rowKey, onRowClick, emptyTitle, emptyDescription, pagination }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
       <div className="table-wrap">
@@ -53,6 +56,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, emptyTitle, em
           ))}
         </tbody>
       </table>
+      {pagination && <Pagination {...pagination} />}
     </div>
   );
 }

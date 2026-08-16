@@ -10,6 +10,7 @@ export interface NavItem {
   label: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
   end?: boolean;
+  count?: number;
 }
 
 export interface NavSection {
@@ -63,6 +64,7 @@ export function Sidebar({ brandName, logoUrl, sections, open, onNavigate }: Side
               >
                 <item.icon size={16.5} strokeWidth={2} />
                 {item.label}
+                {!!item.count && <span className="sidebar-link-count">{item.count > 99 ? "99+" : item.count}</span>}
               </NavLink>
             ))}
           </div>

@@ -11,6 +11,7 @@ import { SuperOfficeDashboardPage } from "../pages/superoffice/DashboardPage";
 import { TenantProfilePage } from "../pages/superoffice/TenantProfilePage";
 import { CreateBusinessPage } from "../pages/superoffice/CreateBusinessPage";
 import { BusinessDetailPage } from "../pages/superoffice/BusinessDetailPage";
+import { IntegrationsPage } from "../pages/superoffice/IntegrationsPage";
 
 // SuperOffice is generic — no per-deployment Business to resolve, so the login screen just
 // carries plain Vastora branding (SUPEROFFICE_FRONTEND_BLUEPRINT.md §3).
@@ -68,6 +69,7 @@ function AuthenticatedSuperOffice() {
         <Route path="businesses/new" element={<CreateBusinessPage />} />
         <Route path="businesses/:businessId" element={<BusinessDetailPage />} />
         <Route path="tenant" element={<TenantProfilePage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
