@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { ImagePlus, Plus, Trash2, X } from "lucide-react";
 import { businessApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
@@ -18,6 +18,7 @@ import { PageLoader, InfoBanner } from "../../components/Feedback";
 import { BusinessStatusBadge } from "../../components/Badge";
 import { useToast } from "../../context/ToastContext";
 import { formatCurrencyLabel } from "../../lib/currencies";
+import { resolveMediaUrl } from "../../lib/media";
 import type { UpdateBusinessRequest } from "../../types/api";
 
 interface ProfileForm {
@@ -75,10 +76,15 @@ export function BusinessProfilePage() {
     reset,
     control,
     watch,
+    setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<ProfileForm>();
 
   const currencyValue = watch("currency");
+  const logoUrl = watch("logoUrl");
+  const bannerUrl = watch("bannerUrl");
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+  const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (business) reset(business);
@@ -92,6 +98,26 @@ export function BusinessProfilePage() {
       notify("Business profile updated.", "success");
     },
     onError: (err) => notify(err instanceof ApiError ? err.message : "Could not update profile.", "error"),
+  });
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: (file: File) => businessApi.uploadLogo(businessId, file),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["business", businessId], updated);
+      setValue("logoUrl", updated.logoUrl, { shouldDirty: true });
+      notify("Logo uploaded.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not upload logo.", "error"),
+  });
+
+  const uploadBannerMutation = useMutation({
+    mutationFn: (file: File) => businessApi.uploadBanner(businessId, file),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["business", businessId], updated);
+      setValue("bannerUrl", updated.bannerUrl, { shouldDirty: true });
+      notify("Banner uploaded.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not upload banner.", "error"),
   });
 
   const deliveryModuleMutation = useMutation({
@@ -177,11 +203,87 @@ export function BusinessProfilePage() {
                   )}
                 />
               </Field>
-              <Field label="Logo URL" optional>
-                <Input disabled={!canEdit} {...register("logoUrl")} />
+              <Field label="Logo URL" optional hint={canEdit ? "Or upload a file (JPEG/PNG/WEBP/GIF, 5MB max)." : undefined}>
+                <Input disabled={!canEdit} {...register("logoUrl")} placeholder="https://…" />
+                {(logoUrl || canEdit) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                    {logoUrl && (
+                      <div style={{ position: "relative" }}>
+                        <img src={resolveMediaUrl(logoUrl)} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => setValue("logoUrl", "", { shouldDirty: true })}
+                            style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20 }}
+                            aria-label="Remove logo"
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <>
+                        <input
+                          ref={logoFileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) uploadLogoMutation.mutate(file);
+                          }}
+                        />
+                        <Button type="button" variant="secondary" size="sm" loading={uploadLogoMutation.isPending} onClick={() => logoFileInputRef.current?.click()}>
+                          <ImagePlus size={13} /> Upload logo
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
               </Field>
-              <Field label="Banner URL" optional className="span-2">
-                <Input disabled={!canEdit} {...register("bannerUrl")} />
+              <Field label="Banner URL" optional className="span-2" hint={canEdit ? "Or upload a file (JPEG/PNG/WEBP/GIF, 5MB max)." : undefined}>
+                <Input disabled={!canEdit} {...register("bannerUrl")} placeholder="https://…" />
+                {(bannerUrl || canEdit) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                    {bannerUrl && (
+                      <div style={{ position: "relative" }}>
+                        <img src={resolveMediaUrl(bannerUrl)} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => setValue("bannerUrl", "", { shouldDirty: true })}
+                            style={{ position: "absolute", top: -8, right: -8, width: 20, height: 20 }}
+                            aria-label="Remove banner"
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <>
+                        <input
+                          ref={bannerFileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (file) uploadBannerMutation.mutate(file);
+                          }}
+                        />
+                        <Button type="button" variant="secondary" size="sm" loading={uploadBannerMutation.isPending} onClick={() => bannerFileInputRef.current?.click()}>
+                          <ImagePlus size={13} /> Upload banner
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
               </Field>
               <Field
                 label="Default Delivery Fee"
