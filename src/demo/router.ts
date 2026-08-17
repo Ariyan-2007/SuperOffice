@@ -219,6 +219,26 @@ const routes: RouteDef[] = [
     },
   },
   {
+    method: "POST",
+    path: "/api/businesses/:businessId/logo",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { url?: string };
+      const business = demoStore.setBusinessLogo(params.businessId, b.url ?? "");
+      return business ? ok(business) : fail(404, "Business not found.");
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/banner",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { url?: string };
+      const business = demoStore.setBusinessBanner(params.businessId, b.url ?? "");
+      return business ? ok(business) : fail(404, "Business not found.");
+    },
+  },
+  {
     method: "PATCH",
     path: "/api/businesses/:businessId/delivery-module",
     auth: "required",
@@ -260,6 +280,16 @@ const routes: RouteDef[] = [
     path: "/api/businesses/:businessId/categories/:categoryId",
     auth: "required",
     handler: ({ params }) => (demoStore.removeCategory(params.businessId, params.categoryId) ? ok(undefined, 204) : fail(404, "Category not found.")),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/categories/:categoryId/image",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { url?: string };
+      const category = demoStore.setCategoryImage(params.businessId, params.categoryId, b.url ?? "");
+      return category ? ok(category) : fail(404, "Category not found.");
+    },
   },
 
   {
@@ -760,6 +790,16 @@ const routes: RouteDef[] = [
     path: "/api/businesses/:businessId/content/:id",
     auth: "required",
     handler: ({ params }) => (demoStore.removeContent(params.businessId, params.id) ? ok(undefined, 204) : fail(404, "Content block not found.")),
+  },
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/content/:id/image",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const b = body as { url?: string };
+      const block = demoStore.setContentImage(params.businessId, params.id, b.url ?? "");
+      return block ? ok(block) : fail(404, "Content block not found.");
+    },
   },
 
   // ---------- audit log (added 2026-08-16) ----------

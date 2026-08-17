@@ -144,6 +144,27 @@ export const businessApi = {
   // SuperOffice's Business detail page calls this same function.
   setDeliveryModule: (businessId: string, enabled: boolean) =>
     http.patch<BusinessResponse>(`/api/businesses/${businessId}/delivery-module`, { enabled }).then((r) => r.data),
+  // Speculative — not in the blueprint (§7.2 only documents logoUrl/bannerUrl as plain strings
+  // the caller supplies). Mirrors §9.5's product-image convention (multipart, field `file`) so
+  // it's a drop-in once the backend adds these routes; 404s against the real API until then.
+  uploadLogo: (businessId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<BusinessResponse>(`/api/businesses/${businessId}/logo`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
+  uploadBanner: (businessId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<BusinessResponse>(`/api/businesses/${businessId}/banner`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
 };
 
 // ---------- categories ----------
@@ -159,6 +180,18 @@ export const categoryApi = {
     http.put<CategoryResponse>(`/api/businesses/${businessId}/categories/${categoryId}`, data).then((r) => r.data),
   remove: (businessId: string, categoryId: string) =>
     http.delete<void>(`/api/businesses/${businessId}/categories/${categoryId}`).then((r) => r.data),
+  // Speculative — §7.3 only documents `imageUrl` as a plain string field, no upload route.
+  // Mirrors §9.5's product-image convention (multipart, field `file`); 404s against the real
+  // API until a backend route exists.
+  uploadImage: (businessId: string, categoryId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<CategoryResponse>(`/api/businesses/${businessId}/categories/${categoryId}/image`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
 };
 
 // ---------- products ----------
@@ -396,6 +429,18 @@ export const contentApi = {
   update: (businessId: string, id: string, data: ContentBlockRequest) =>
     http.put<ContentBlockResponse>(`/api/businesses/${businessId}/content/${id}`, data).then((r) => r.data),
   remove: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/content/${id}`).then((r) => r.data),
+  // Speculative — §7.13 only documents `imageUrl` as a plain string field, no upload route.
+  // Mirrors §9.5's product-image convention (multipart, field `file`); 404s against the real
+  // API until a backend route exists.
+  uploadImage: (businessId: string, id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<ContentBlockResponse>(`/api/businesses/${businessId}/content/${id}/image`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((r) => r.data);
+  },
 };
 
 // ---------- audit log (added 2026-08-16, §9.35, Admin-tier only) ----------

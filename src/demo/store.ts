@@ -241,6 +241,22 @@ class DemoStore {
     return business;
   }
 
+  setBusinessLogo(id: string, url: string): BusinessResponse | null {
+    const business = this.getBusiness(id);
+    if (!business) return null;
+    business.logoUrl = url;
+    this.persist();
+    return business;
+  }
+
+  setBusinessBanner(id: string, url: string): BusinessResponse | null {
+    const business = this.getBusiness(id);
+    if (!business) return null;
+    business.bannerUrl = url;
+    this.persist();
+    return business;
+  }
+
   setBusinessStatus(id: string, status: BusinessStatus): BusinessResponse | null {
     const business = this.getBusiness(id);
     if (!business) return null;
@@ -313,6 +329,14 @@ class DemoStore {
     this.data.categories = this.data.categories.filter((c) => !(c.businessId === businessId && c.id === id));
     this.persist();
     return this.data.categories.length < before;
+  }
+
+  setCategoryImage(businessId: string, id: string, url: string): CategoryResponse | null {
+    const category = this.getCategory(businessId, id);
+    if (!category) return null;
+    category.imageUrl = url;
+    this.persist();
+    return category;
   }
 
   // ---------- products ----------
@@ -1193,6 +1217,14 @@ class DemoStore {
     this.data.content = this.data.content.filter((c) => !(c.businessId === businessId && c.id === id));
     this.persist();
     return this.data.content.length < before;
+  }
+
+  setContentImage(businessId: string, id: string, url: string): ContentBlockResponse | null {
+    const block = this.data.content.find((c) => c.businessId === businessId && c.id === id);
+    if (!block) return null;
+    block.imageUrl = url;
+    this.persist();
+    return stripBusinessId(block);
   }
 
   // ---------- audit log (added 2026-08-16, §9.35) ----------

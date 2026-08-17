@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { FileText, ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
 import { contentApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
+import { resolveMediaUrl } from "../../lib/media";
 import { useBusinessId } from "../../context/useBusinessId";
 import { PageHeader } from "../../components/StatCard";
 import { Button } from "../../components/Button";
@@ -98,6 +99,7 @@ export function StorefrontContentPage() {
           block={editing === "new" ? null : editing}
           defaultType={typeFilter}
           menuItems={menuItems}
+          businessId={businessId}
           onClose={() => setEditing(null)}
           onCreate={(data) => createMutation.mutate(data)}
           onUpdate={(id, data) => updateMutation.mutate({ id, data })}
@@ -123,6 +125,7 @@ function ContentModal({
   block,
   defaultType,
   menuItems,
+  businessId,
   onClose,
   onCreate,
   onUpdate,
@@ -131,12 +134,15 @@ function ContentModal({
   block: ContentBlockResponse | null;
   defaultType: ContentBlockType;
   menuItems: ContentBlockResponse[];
+  businessId: string;
   onClose: () => void;
   onCreate: (data: ContentBlockRequest) => void;
   onUpdate: (id: string, data: ContentBlockRequest) => void;
   loading: boolean;
 }) {
-  const { register, handleSubmit, watch } = useForm<{
+  const { notify } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { register, handleSubmit, watch, setValue } = useForm<{
     type: ContentBlockType;
     slug: string;
     title: string;
@@ -191,6 +197,16 @@ function ContentModal({
   });
 
   const type = watch("type");
+  const imageUrl = watch("imageUrl");
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => contentApi.uploadImage(businessId, block!.id, file),
+    onSuccess: (updated) => {
+      setValue("imageUrl", updated.imageUrl, { shouldDirty: true });
+      notify("Image uploaded.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not upload image.", "error"),
+  });
 
   const submit = handleSubmit((v) => {
     const data: ContentBlockRequest = {
@@ -247,7 +263,50 @@ function ContentModal({
           )}
           <Field label="Link URL" optional><Input {...register("linkUrl")} /></Field>
           <Field label="Link Label" optional><Input {...register("linkLabel")} /></Field>
-          <Field label="Image URL" optional className="span-2"><Input {...register("imageUrl")} /></Field>
+          <Field
+            label="Image URL"
+            optional
+            className="span-2"
+            hint={block ? "Or upload a file (JPEG/PNG/WEBP/GIF, 5MB max)." : "Upload becomes available after creating the block."}
+          >
+            <Input {...register("imageUrl")} placeholder="https://…" />
+          </Field>
+          {(imageUrl || block) && (
+            <div className="span-2" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {imageUrl && (
+                <div style={{ position: "relative" }}>
+                  <img src={resolveMediaUrl(imageUrl)} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => setValue("imageUrl", "", { shouldDirty: true })}
+                    style={{ position: "absolute", top: -8, right: -8, width: 22, height: 22 }}
+                    aria-label="Remove image"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+              {block && (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) uploadMutation.mutate(file);
+                    }}
+                  />
+                  <Button type="button" variant="secondary" size="sm" loading={uploadMutation.isPending} onClick={() => fileInputRef.current?.click()}>
+                    <ImagePlus size={13} /> Upload image
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           <Field label="Sort Order"><Input type="number" {...register("sortOrder", { valueAsNumber: true })} /></Field>
           <Field label="Published"><label className="checkbox-row" style={{ height: 38 }}><input type="checkbox" {...register("isPublished")} /> Visible on the storefront</label></Field>
           <Field label="Starts At" optional><Input type="datetime-local" {...register("startsAt")} /></Field>

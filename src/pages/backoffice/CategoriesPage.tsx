@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2, FolderTree, List, GitBranch } from "lucide-react";
+import { Pencil, Plus, Trash2, FolderTree, List, GitBranch, ImagePlus, X } from "lucide-react";
 import { categoryApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
+import { resolveMediaUrl } from "../../lib/media";
 import { useBusinessId } from "../../context/useBusinessId";
 import { useAuth } from "../../auth/AuthContext";
 import { ADMIN_LEVEL } from "../../routes/backofficeRoles";
@@ -232,6 +233,7 @@ export function CategoriesPage() {
         <CategoryModal
           category={editing === "new" ? null : editing}
           categories={categories ?? []}
+          businessId={businessId}
           defaultParentId={editing === "new" ? createParentId : null}
           onClose={() => setEditing(null)}
           onSubmit={(values) => {
@@ -278,6 +280,7 @@ export function CategoriesPage() {
 function CategoryModal({
   category,
   categories,
+  businessId,
   defaultParentId,
   onClose,
   onSubmit,
@@ -285,14 +288,20 @@ function CategoryModal({
 }: {
   category: CategoryResponse | null;
   categories: CategoryResponse[];
+  businessId: string;
   defaultParentId: string | null;
   onClose: () => void;
   onSubmit: (values: CategoryForm) => void;
   loading: boolean;
 }) {
+  const { notify } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<CategoryForm>({
     defaultValues: category
@@ -305,6 +314,17 @@ function CategoryModal({
           isActive: category.isActive ? "true" : "false",
         }
       : { name: "", description: "", imageUrl: "", sortOrder: 0, parentCategoryId: defaultParentId ?? "", isActive: "true" },
+  });
+
+  const imageUrl = watch("imageUrl");
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => categoryApi.uploadImage(businessId, category!.id, file),
+    onSuccess: (updated) => {
+      setValue("imageUrl", updated.imageUrl, { shouldDirty: true });
+      notify("Image uploaded.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not upload image.", "error"),
   });
 
   // A category can't be re-parented under itself or its own descendants — exclude both
@@ -349,10 +369,50 @@ function CategoryModal({
           <Field label="Sort Order">
             <Input type="number" {...register("sortOrder", { valueAsNumber: true })} />
           </Field>
-          <Field label="Image URL" optional>
-            <Input {...register("imageUrl")} />
+          <Field
+            label="Image URL"
+            optional
+            hint={category ? "Or upload a file (JPEG/PNG/WEBP/GIF, 5MB max)." : "Upload becomes available after creating the category."}
+          >
+            <Input {...register("imageUrl")} placeholder="https://…" />
           </Field>
         </div>
+        {(imageUrl || category) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {imageUrl && (
+              <div style={{ position: "relative" }}>
+                <img src={resolveMediaUrl(imageUrl)} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setValue("imageUrl", "", { shouldDirty: true })}
+                  style={{ position: "absolute", top: -8, right: -8, width: 22, height: 22 }}
+                  aria-label="Remove image"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+            {category && (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) uploadMutation.mutate(file);
+                  }}
+                />
+                <Button type="button" variant="secondary" size="sm" loading={uploadMutation.isPending} onClick={() => fileInputRef.current?.click()}>
+                  <ImagePlus size={13} /> Upload image
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         {category && (
           <Field label="Status">
             <Select {...register("isActive")}>

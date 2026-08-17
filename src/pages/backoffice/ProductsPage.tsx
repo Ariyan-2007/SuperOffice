@@ -10,6 +10,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { ADMIN_LEVEL } from "../../routes/backofficeRoles";
 import { usePagedQuery } from "../../lib/usePagedQuery";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
+import { resolveMediaUrl } from "../../lib/media";
 import { PageHeader } from "../../components/StatCard";
 import { Button } from "../../components/Button";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -591,7 +592,7 @@ function ProductModal({
             <div className="span-2" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {images.map((url, i) => (
                 <div key={url + i} style={{ position: "relative" }}>
-                  <img src={url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                  <img src={resolveMediaUrl(url)} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
                   <button
                     type="button"
                     className="icon-btn"
