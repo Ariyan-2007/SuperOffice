@@ -154,6 +154,7 @@ export interface CreateCategoryRequest {
 
 export interface UpdateCategoryRequest {
   name: string;
+  parentCategoryId: string | null;
   description: string;
   imageUrl: string;
   sortOrder: number;
