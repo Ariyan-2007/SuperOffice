@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Landmark, Pencil, Plus, Receipt, Trash2 } from "lucide-react";
+import { Landmark, Pencil, Plus, Receipt, Search, Trash2 } from "lucide-react";
 import { accountingApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
@@ -10,9 +10,10 @@ import { PageHeader, StatCard } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { DataTable, type Column } from "../../components/DataTable";
-import { PageLoader, EmptyState, InfoBanner } from "../../components/Feedback";
+import { PageLoader, EmptyState, WarningBanner } from "../../components/Feedback";
 import { Modal, ConfirmDialog } from "../../components/Modal";
 import { Field, Input, Textarea } from "../../components/Field";
+import { DateRangePicker, type DateRangeValue } from "../../components/DateRangePicker";
 import { useToast } from "../../context/ToastContext";
 import { formatDate, formatMoney, toDatetimeLocalValue } from "../../lib/format";
 import type { CreateExpenseRequest, ExpenseResponse, UpdateExpenseRequest } from "../../types/api";
@@ -24,8 +25,20 @@ interface ExpenseForm {
   incurredAt: string;
 }
 
-function isoDaysAgo(days: number): string {
-  return new Date(Date.now() - days * 86_400_000).toISOString();
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function endOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+}
+
+// Matches the DateRangePicker's own "Last 30 days" preset exactly (same day-granularity
+// calculation) so the trigger reads "Last 30 days" on first load instead of a raw date span.
+function defaultRange(): DateRangeValue {
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(from.getDate() - 29);
+  return { from: startOfDay(from).toISOString(), to: endOfDay(today).toISOString() };
 }
 
 // Admin-tier only (BACKOFFICE_FRONTEND_BLUEPRINT.md §7.10, added 2026-08-15) — financial
@@ -40,8 +53,8 @@ export function AccountingPage() {
 
   const [editing, setEditing] = useState<ExpenseResponse | "new" | null>(null);
   const [deleting, setDeleting] = useState<ExpenseResponse | null>(null);
-  const [from, setFrom] = useState(() => toDatetimeLocalValue(isoDaysAgo(30)));
-  const [to, setTo] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
+  const [range, setRange] = useState<DateRangeValue>(defaultRange);
+  const [expenseSearch, setExpenseSearch] = useState("");
 
   const { data: expenses, isLoading: expensesLoading } = useQuery({
     queryKey: ["expenses", businessId],
@@ -51,13 +64,9 @@ export function AccountingPage() {
     queryKey: ["balance-sheet", businessId],
     queryFn: () => accountingApi.balanceSheet(businessId),
   });
-  const {
-    data: pnl,
-    isLoading: pnlLoading,
-    refetch: refetchPnl,
-  } = useQuery({
-    queryKey: ["pnl", businessId, from, to],
-    queryFn: () => accountingApi.profitAndLoss(businessId, new Date(from).toISOString(), new Date(to).toISOString()),
+  const { data: pnl, isLoading: pnlLoading } = useQuery({
+    queryKey: ["pnl", businessId, range.from, range.to],
+    queryFn: () => accountingApi.profitAndLoss(businessId, range.from, range.to),
   });
 
   const invalidateExpenses = () => queryClient.invalidateQueries({ queryKey: ["expenses", businessId] });
@@ -92,6 +101,13 @@ export function AccountingPage() {
     onError: (err) => notify(err instanceof ApiError ? err.message : "Could not delete expense.", "error"),
   });
 
+  const visibleExpenses = useMemo(() => {
+    const sorted = [...(expenses ?? [])].sort((a, b) => +new Date(b.incurredAt) - +new Date(a.incurredAt));
+    const q = expenseSearch.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter((e) => e.category.toLowerCase().includes(q) || e.note.toLowerCase().includes(q));
+  }, [expenses, expenseSearch]);
+
   const columns: Column<ExpenseResponse>[] = [
     { key: "category", header: "Category", render: (e) => <span style={{ fontWeight: 600 }}>{e.category}</span> },
     { key: "amount", header: "Amount", render: (e) => formatMoney(e.amount, currency) },
@@ -118,39 +134,56 @@ export function AccountingPage() {
       <PageHeader title="Accounting" subtitle="Operational cash-basis bookkeeping for this Business — not a GAAP system of record." />
 
       <Card>
-        <CardHeader title="Profit &amp; Loss" />
+        <CardHeader title="Profit &amp; Loss" actions={<DateRangePicker value={range} onChange={setRange} minDate={business?.createdAt} />} />
         <CardBody>
-          <div className="filter-bar">
-            <Field label="From">
-              <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
-            </Field>
-            <Field label="To">
-              <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
-            </Field>
-            <Button variant="secondary" onClick={() => refetchPnl()} style={{ marginTop: 20 }}>
-              Refresh
-            </Button>
-          </div>
           {pnlLoading || !pnl ? (
             <PageLoader />
           ) : (
             <>
               {pnl.uncostedOrderCount > 0 && (
-                <InfoBanner>
-                  {pnl.uncostedOrderCount} delivered order{pnl.uncostedOrderCount === 1 ? "" : "s"} in this window contributed no cost —
-                  gross margin is overstated by an unknown amount. Add cost prices on the Products page to fix this.
-                </InfoBanner>
+                <WarningBanner>
+                  {pnl.uncostedOrderCount} delivered or picked-up order{pnl.uncostedOrderCount === 1 ? "" : "s"} in this window contributed no
+                  cost — gross margin is overstated by an unknown amount. Add cost prices on the Products page to fix this.
+                </WarningBanner>
               )}
-              <div className="stat-grid" style={{ marginTop: pnl.uncostedOrderCount > 0 ? 16 : 0 }}>
-                <StatCard label="Revenue" value={formatMoney(pnl.revenue, currency)} meta="Delivered orders only, net of tax" />
-                <StatCard label="Cost of Goods Sold" value={formatMoney(pnl.costOfGoodsSold, currency)} />
-                <StatCard label="Gross Profit" value={formatMoney(pnl.grossProfit, currency)} meta={`${pnl.grossMarginPercent}% margin`} />
-                <StatCard label="Refunds" value={formatMoney(pnl.refunds, currency)} />
-                <StatCard label="Expenses" value={formatMoney(pnl.expenses, currency)} />
-                <StatCard label="Delivery Payouts" value={formatMoney(pnl.deliveryPayouts, currency)} />
-                <StatCard label="Tax Collected" value={formatMoney(pnl.taxCollected, currency)} />
-                <StatCard label="Net Profit" value={formatMoney(pnl.netProfit, currency)} meta="Gross profit − expenses − payouts" />
+
+              <div className="stat-grid" style={{ marginTop: pnl.uncostedOrderCount > 0 ? 16 : 0, marginBottom: 22 }}>
+                <StatCard label="Revenue" value={formatMoney(pnl.revenue, currency)} meta="Net of tax, delivered/picked-up orders only" />
+                <StatCard
+                  label="Gross Profit"
+                  value={formatMoney(pnl.grossProfit, currency)}
+                  meta={`${pnl.grossMarginPercent}% margin`}
+                  tone={pnl.grossProfit >= 0 ? "positive" : "negative"}
+                />
+                <StatCard
+                  label="Net Profit"
+                  value={formatMoney(pnl.netProfit, currency)}
+                  meta="After expenses & delivery payouts"
+                  tone={pnl.netProfit >= 0 ? "positive" : "negative"}
+                />
               </div>
+
+              <div className="kv-grid-section" style={{ marginBottom: 10 }}>Breakdown</div>
+              <dl className="kv-grid kv-grid-financial">
+                <dt>Revenue</dt>
+                <dd>{formatMoney(pnl.revenue, currency)}</dd>
+                <dt>Refunds</dt>
+                <dd>−{formatMoney(pnl.refunds, currency)}</dd>
+                <dt>Cost of Goods Sold</dt>
+                <dd>−{formatMoney(pnl.costOfGoodsSold, currency)}</dd>
+                <dt className="kv-subtotal">Gross Profit</dt>
+                <dd className="kv-subtotal">{formatMoney(pnl.grossProfit, currency)}</dd>
+                <dt>Expenses</dt>
+                <dd>−{formatMoney(pnl.expenses, currency)}</dd>
+                <dt>Delivery Payouts</dt>
+                <dd>−{formatMoney(pnl.deliveryPayouts, currency)}</dd>
+                <dt className="kv-final">Net Profit</dt>
+                <dd className={`kv-final ${pnl.netProfit >= 0 ? "positive" : "negative"}`}>{formatMoney(pnl.netProfit, currency)}</dd>
+              </dl>
+              <p className="text-muted" style={{ fontSize: 12, marginTop: 14, marginBottom: 0 }}>
+                Tax collected in this window: <strong>{formatMoney(pnl.taxCollected, currency)}</strong> — held on behalf of the tax authority,
+                not part of profit.
+              </p>
             </>
           )}
         </CardBody>
@@ -162,21 +195,27 @@ export function AccountingPage() {
           {balanceLoading || !balanceSheet ? (
             <PageLoader />
           ) : (
-            <dl className="kv-grid">
+            <dl className="kv-grid kv-grid-financial">
+              <div className="kv-grid-section">Assets</div>
               <dt>Cash Position</dt>
               <dd>{formatMoney(balanceSheet.cashPosition, currency)}</dd>
               <dt>Inventory Value (Cost)</dt>
               <dd>{formatMoney(balanceSheet.inventoryValueAtCost, currency)}</dd>
-              <dt style={{ fontWeight: 650, color: "var(--text)" }}>Total Assets</dt>
-              <dd style={{ fontWeight: 650 }}>{formatMoney(balanceSheet.totalAssets, currency)}</dd>
+              <dt className="kv-subtotal">Total Assets</dt>
+              <dd className="kv-subtotal">{formatMoney(balanceSheet.totalAssets, currency)}</dd>
+
+              <div className="kv-grid-section">Liabilities</div>
               <dt>Tax Payable</dt>
               <dd>{formatMoney(balanceSheet.taxPayable, currency)}</dd>
               <dt>Gift Card Liability</dt>
               <dd>{formatMoney(balanceSheet.giftCardLiability, currency)}</dd>
-              <dt style={{ fontWeight: 650, color: "var(--text)" }}>Total Liabilities</dt>
-              <dd style={{ fontWeight: 650 }}>{formatMoney(balanceSheet.totalLiabilities, currency)}</dd>
-              <dt style={{ fontWeight: 650, color: "var(--text)" }}>Net Position</dt>
-              <dd style={{ fontWeight: 650 }}>{formatMoney(balanceSheet.netPosition, currency)}</dd>
+              <dt className="kv-subtotal">Total Liabilities</dt>
+              <dd className="kv-subtotal">{formatMoney(balanceSheet.totalLiabilities, currency)}</dd>
+
+              <dt className="kv-final">Net Position</dt>
+              <dd className={`kv-final ${balanceSheet.netPosition >= 0 ? "positive" : "negative"}`}>
+                {formatMoney(balanceSheet.netPosition, currency)}
+              </dd>
             </dl>
           )}
         </CardBody>
@@ -191,13 +230,36 @@ export function AccountingPage() {
             </Button>
           }
         />
-        <CardBody style={{ padding: expensesLoading || expenses?.length ? 0 : undefined }}>
+        <CardBody style={{ padding: 0 }}>
           {expensesLoading ? (
-            <PageLoader />
+            <div style={{ padding: 20 }}>
+              <PageLoader />
+            </div>
           ) : !expenses?.length ? (
-            <EmptyState icon={Receipt} title="No Expenses Recorded" description="Track rent, supplies, and other costs here." />
+            <div style={{ padding: 20 }}>
+              <EmptyState icon={Receipt} title="No Expenses Recorded" description="Track rent, supplies, and other costs here." />
+            </div>
           ) : (
-            <DataTable columns={columns} rows={expenses} rowKey={(e) => e.id} />
+            <>
+              <div className="filter-bar" style={{ padding: "16px 20px 0", marginBottom: 4 }}>
+                <div style={{ position: "relative" }}>
+                  <Search size={14} style={{ position: "absolute", left: 11, top: 12, color: "var(--text-faint)" }} />
+                  <Input
+                    style={{ paddingLeft: 32, minWidth: 220 }}
+                    placeholder="Search category or note…"
+                    value={expenseSearch}
+                    onChange={(e) => setExpenseSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+              {!visibleExpenses.length ? (
+                <div style={{ padding: 20 }}>
+                  <EmptyState icon={Search} title="No Matching Expenses" description="Try a different search term." />
+                </div>
+              ) : (
+                <DataTable columns={columns} rows={visibleExpenses} rowKey={(e) => e.id} />
+              )}
+            </>
           )}
         </CardBody>
       </Card>

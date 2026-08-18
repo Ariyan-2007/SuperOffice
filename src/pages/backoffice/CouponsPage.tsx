@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Ticket, Trash2 } from "lucide-react";
+import { Mail, Pencil, Plus, Ticket, Trash2 } from "lucide-react";
 import { couponApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
@@ -15,9 +15,10 @@ import { PageLoader, EmptyState, InfoBanner } from "../../components/Feedback";
 import { Badge } from "../../components/Badge";
 import { Modal, ConfirmDialog } from "../../components/Modal";
 import { Field, Input, Select } from "../../components/Field";
+import { SendDiscountEmailModal } from "../../components/SendDiscountEmailModal";
 import { useToast } from "../../context/ToastContext";
 import { formatDate, formatMoney, toDatetimeLocalValue } from "../../lib/format";
-import type { CouponResponse, CreateCouponRequest, DiscountType, UpdateCouponRequest } from "../../types/api";
+import type { CouponResponse, CreateCouponRequest, DiscountType, OfferVisibility, UpdateCouponRequest } from "../../types/api";
 
 interface CouponForm {
   code: string;
@@ -28,6 +29,7 @@ interface CouponForm {
   startsAt: string;
   expiresAt: string;
   isActive: "true" | "false";
+  visibility: OfferVisibility;
 }
 
 export function CouponsPage() {
@@ -39,6 +41,7 @@ export function CouponsPage() {
   const canManage = ADMIN_LEVEL.includes(user!.role);
   const [editing, setEditing] = useState<CouponResponse | "new" | null>(null);
   const [deleting, setDeleting] = useState<CouponResponse | null>(null);
+  const [sendingCode, setSendingCode] = useState<string | null>(null);
 
   const { data: coupons, isLoading } = useQuery({ queryKey: ["coupons", businessId], queryFn: () => couponApi.list(businessId) });
 
@@ -82,12 +85,17 @@ export function CouponsPage() {
       render: (c) => (c.discountType === "Percentage" ? `${c.discountValue}%` : formatMoney(c.discountValue, business?.currency ?? "USD")),
     },
     { key: "uses", header: "Uses", render: (c) => `${c.usedCount}${c.maxUses ? ` / ${c.maxUses}` : ""}` },
-    { key: "expires", header: "Expires", render: (c) => formatDate(c.expiresAt) },
+    { key: "expires", header: "Expires", render: (c) => (c.expiresAt ? formatDate(c.expiresAt) : "Never") },
+    {
+      key: "visibility",
+      header: "Visibility",
+      render: (c) => <Badge tone={c.visibility === "Hidden" ? "neutral" : "brand"}>{c.visibility === "Hidden" ? "Hidden" : "Public"}</Badge>,
+    },
     {
       key: "status",
       header: "Status",
       render: (c) => {
-        const expired = new Date(c.expiresAt) < new Date();
+        const expired = !!c.expiresAt && new Date(c.expiresAt) < new Date();
         return <Badge tone={!c.isActive ? "neutral" : expired ? "danger" : "success"}>{!c.isActive ? "Inactive" : expired ? "Expired" : "Active"}</Badge>;
       },
     },
@@ -98,6 +106,9 @@ export function CouponsPage() {
             header: "",
             render: (c: CouponResponse) => (
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <Button size="sm" variant="ghost" onClick={() => setSendingCode(c.code)} title="Send to customers">
+                  <Mail size={13} />
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
                   <Pencil size={13} />
                 </Button>
@@ -155,6 +166,8 @@ export function CouponsPage() {
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
         onCancel={() => setDeleting(null)}
       />
+
+      {sendingCode && <SendDiscountEmailModal code={sendingCode} onClose={() => setSendingCode(null)} />}
     </div>
   );
 }
@@ -185,8 +198,9 @@ function CouponModal({
           minOrderAmount: coupon.minOrderAmount != null ? String(coupon.minOrderAmount) : "",
           maxUses: coupon.maxUses != null ? String(coupon.maxUses) : "",
           startsAt: toDatetimeLocalValue(coupon.startsAt),
-          expiresAt: toDatetimeLocalValue(coupon.expiresAt),
+          expiresAt: coupon.expiresAt ? toDatetimeLocalValue(coupon.expiresAt) : "",
           isActive: coupon.isActive ? "true" : "false",
+          visibility: coupon.visibility,
         }
       : {
           code: "",
@@ -197,6 +211,7 @@ function CouponModal({
           startsAt: toDatetimeLocalValue(new Date().toISOString()),
           expiresAt: "",
           isActive: "true",
+          visibility: "Public",
         },
   });
 
@@ -204,10 +219,10 @@ function CouponModal({
     const minOrderAmount = values.minOrderAmount.trim() === "" ? null : Number(values.minOrderAmount);
     const maxUses = values.maxUses.trim() === "" ? null : Number(values.maxUses);
     const startsAt = new Date(values.startsAt).toISOString();
-    const expiresAt = new Date(values.expiresAt).toISOString();
+    const expiresAt = values.expiresAt.trim() === "" ? null : new Date(values.expiresAt).toISOString();
 
     if (coupon) {
-      onUpdate(coupon.id, { isActive: values.isActive === "true", expiresAt, maxUses });
+      onUpdate(coupon.id, { isActive: values.isActive === "true", expiresAt, maxUses, visibility: values.visibility });
     } else {
       onCreate({
         code: values.code.trim().toUpperCase(),
@@ -217,6 +232,7 @@ function CouponModal({
         maxUses,
         startsAt,
         expiresAt,
+        visibility: values.visibility,
       });
     }
   });
@@ -256,8 +272,8 @@ function CouponModal({
           <Field label="Starts At">
             <Input disabled={!!coupon} type="datetime-local" {...register("startsAt", { required: true })} />
           </Field>
-          <Field label="Expires At">
-            <Input type="datetime-local" {...register("expiresAt", { required: true })} />
+          <Field label="Expires At" optional hint="Leave blank for a coupon that never expires">
+            <Input type="datetime-local" {...register("expiresAt")} />
           </Field>
         </div>
         {coupon && (
@@ -268,6 +284,12 @@ function CouponModal({
             </Select>
           </Field>
         )}
+        <Field label="Availability">
+          <Select {...register("visibility")}>
+            <option value="Public">Show as an available offer</option>
+            <option value="Hidden">Only by direct code entry</option>
+          </Select>
+        </Field>
       </form>
     </Modal>
   );

@@ -52,6 +52,8 @@ import type {
   ReturnResponse,
   ReviewResponse,
   ReviewStatus,
+  SendDiscountEmailRequest,
+  SendDiscountEmailResult,
   ShippingZoneResponse,
   StockMovementResponse,
   StoreCreditBalanceResponse,
@@ -144,9 +146,8 @@ export const businessApi = {
   // SuperOffice's Business detail page calls this same function.
   setDeliveryModule: (businessId: string, enabled: boolean) =>
     http.patch<BusinessResponse>(`/api/businesses/${businessId}/delivery-module`, { enabled }).then((r) => r.data),
-  // Speculative — not in the blueprint (§7.2 only documents logoUrl/bannerUrl as plain strings
-  // the caller supplies). Mirrors §9.5's product-image convention (multipart, field `file`) so
-  // it's a drop-in once the backend adds these routes; 404s against the real API until then.
+  // Added 2026-08-18 — same shape as product images (§7.4): multipart, field `file`, 5MB limit.
+  // logoUrl/bannerUrl on UpdateBusinessRequest still work for setting a URL directly.
   uploadLogo: (businessId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -180,9 +181,8 @@ export const categoryApi = {
     http.put<CategoryResponse>(`/api/businesses/${businessId}/categories/${categoryId}`, data).then((r) => r.data),
   remove: (businessId: string, categoryId: string) =>
     http.delete<void>(`/api/businesses/${businessId}/categories/${categoryId}`).then((r) => r.data),
-  // Speculative — §7.3 only documents `imageUrl` as a plain string field, no upload route.
-  // Mirrors §9.5's product-image convention (multipart, field `file`); 404s against the real
-  // API until a backend route exists.
+  // Added 2026-08-18 — same shape as product images (§7.4): multipart, field `file`, 5MB limit.
+  // Requires an existing category (create it first without an image, then upload).
   uploadImage: (businessId: string, categoryId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -349,6 +349,11 @@ export const returnApi = {
     http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/received`, {}).then((r) => r.data),
   refund: (businessId: string, returnId: string) =>
     http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/refund`, {}).then((r) => r.data),
+  // Added 2026-08-18, §9.49 — Staff-tier (not Admin): an exchange moves no money, so none of
+  // §9.3's reasoning for restricting /refund to Admin applies here. 409s if the return's
+  // resolution isn't Exchange (route to .refund() instead).
+  exchange: (businessId: string, returnId: string) =>
+    http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/exchange`, {}).then((r) => r.data),
 };
 
 // ---------- reviews (added 2026-08-16, §9.25) ----------
@@ -429,9 +434,8 @@ export const contentApi = {
   update: (businessId: string, id: string, data: ContentBlockRequest) =>
     http.put<ContentBlockResponse>(`/api/businesses/${businessId}/content/${id}`, data).then((r) => r.data),
   remove: (businessId: string, id: string) => http.delete<void>(`/api/businesses/${businessId}/content/${id}`).then((r) => r.data),
-  // Speculative — §7.13 only documents `imageUrl` as a plain string field, no upload route.
-  // Mirrors §9.5's product-image convention (multipart, field `file`); 404s against the real
-  // API until a backend route exists.
+  // Added 2026-08-18 — same shape as product images (§7.4): multipart, field `file`, 5MB limit.
+  // Requires an existing block (create it first, then upload).
   uploadImage: (businessId: string, id: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -441,6 +445,13 @@ export const contentApi = {
       })
       .then((r) => r.data);
   },
+};
+
+// ---------- discount emails (added 2026-08-18, §9.43, Admin-tier only) ----------
+
+export const discountEmailApi = {
+  send: (businessId: string, data: SendDiscountEmailRequest) =>
+    http.post<SendDiscountEmailResult>(`/api/businesses/${businessId}/discount-emails`, data).then((r) => r.data),
 };
 
 // ---------- audit log (added 2026-08-16, §9.35, Admin-tier only) ----------

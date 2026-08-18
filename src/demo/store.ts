@@ -46,6 +46,8 @@ import type {
   PromotionResponse,
   ReturnResponse,
   ReviewResponse,
+  SendDiscountEmailRequest,
+  SendDiscountEmailResult,
   ReviewStatus,
   ShippingZoneResponse,
   StockMovementResponse,
@@ -73,15 +75,42 @@ const PLAN_LIMITS: Record<TenantResponse["plan"], { maxBusinesses: number | null
   Enterprise: { maxBusinesses: null, maxStaffPerBusiness: null, maxProductsPerBusiness: null },
 };
 
-const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+// Two separate flows, chosen by fulfillmentMethod (§9.47, added 2026-08-18) — a Pickup order
+// moves through AwaitingPickup/PickedUp instead of OutForDelivery/Delivered. Digital orders stay
+// on the Delivery/ExternalCourier set (a known backend mismatch, not fixed by this change).
+const DELIVERY_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PendingPayment: ["Processing", "Cancelled"],
   Processing: ["Confirmed", "OutForDelivery", "Cancelled"],
   Confirmed: ["OutForDelivery", "Cancelled"],
   OutForDelivery: ["Delivered", "Cancelled"],
   Delivered: ["Refunded"],
+  AwaitingPickup: [],
+  PickedUp: [],
   Cancelled: [],
   Refunded: [],
 };
+
+const PICKUP_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PendingPayment: ["Processing", "Cancelled"],
+  Processing: ["Confirmed", "AwaitingPickup", "Cancelled"],
+  Confirmed: ["AwaitingPickup", "Cancelled"],
+  AwaitingPickup: ["PickedUp", "Cancelled"],
+  PickedUp: ["Refunded"],
+  OutForDelivery: [],
+  Delivered: [],
+  Cancelled: [],
+  Refunded: [],
+};
+
+function orderTransitionsFor(fulfillmentMethod: OrderResponse["fulfillmentMethod"]): Record<OrderStatus, OrderStatus[]> {
+  return fulfillmentMethod === "Pickup" ? PICKUP_ORDER_TRANSITIONS : DELIVERY_ORDER_TRANSITIONS;
+}
+
+// "Finished" = revenue recognized, agent balance credited, return/review eligible — Delivered,
+// or PickedUp for a Pickup order (§9.47).
+function isOrderFinished(status: OrderStatus): boolean {
+  return status === "Delivered" || status === "PickedUp";
+}
 
 const STORAGE_KEY = "vastora.demoData.v1";
 
@@ -636,8 +665,9 @@ class DemoStore {
       maxUses: data.maxUses ?? null,
       usedCount: 0,
       startsAt: data.startsAt,
-      expiresAt: data.expiresAt,
+      expiresAt: data.expiresAt ?? null,
       isActive: true,
+      visibility: data.visibility ?? "Public",
     };
     this.data.coupons.push(coupon);
     this.persist();
@@ -767,12 +797,12 @@ class DemoStore {
   setOrderStatus(businessId: string, id: string, data: UpdateOrderStatusRequest): OrderResponse | { error: string } | null {
     const order = this.getOrder(businessId, id);
     if (!order) return null;
-    if (!ORDER_TRANSITIONS[order.status].includes(data.status)) {
+    if (!orderTransitionsFor(order.fulfillmentMethod)[order.status].includes(data.status)) {
       return { error: `Cannot move an order from '${order.status}' to '${data.status}'.` };
     }
     order.status = data.status;
     order.statusHistory.push({ status: data.status, timestamp: new Date().toISOString(), note: data.note ?? "" });
-    if (data.status === "Delivered") {
+    if (isOrderFinished(data.status)) {
       order.paymentStatus = "Paid";
       if (order.deliveryAgentUserId) {
         const agent = this.data.deliveryAgents.find((a) => a.businessId === businessId && a.userId === order.deliveryAgentUserId);
@@ -837,8 +867,9 @@ class DemoStore {
     order.trackingUrl = data.trackingUrl;
     order.shippingMethodName = data.shippingMethodName;
     // Recording a tracking number ships the order — mirrors the real API's side effect so the
-    // BackOffice UI never needs a second manual status change afterward.
-    if (data.trackingNumber && ORDER_TRANSITIONS[order.status].includes("OutForDelivery")) {
+    // BackOffice UI never needs a second manual status change afterward. Naturally a no-op for a
+    // Pickup order (§9.47) — OutForDelivery isn't in its transition set.
+    if (data.trackingNumber && orderTransitionsFor(order.fulfillmentMethod)[order.status].includes("OutForDelivery")) {
       order.status = "OutForDelivery";
       order.statusHistory.push({ status: "OutForDelivery", timestamp: new Date().toISOString(), note: `Shipped via ${data.carrierName ?? "courier"}.` });
     }
@@ -953,6 +984,9 @@ class DemoStore {
   refundReturn(businessId: string, id: string): ReturnResponse | { error: string } | null {
     const ret = this.getReturn(businessId, id);
     if (!ret) return null;
+    // §9.49 (added 2026-08-18) — an Exchange-resolution return settles through /exchange instead;
+    // calling /refund on one 409s so it can't accidentally move money for a swap that shouldn't.
+    if (ret.resolution === "Exchange") return { error: "This return is resolved as an Exchange — use the Exchange action instead." };
     if (ret.status !== "Received") return { error: "A return must be received before it can be refunded." };
     ret.status = "Refunded";
     ret.refundedAt = new Date().toISOString();
@@ -963,6 +997,64 @@ class DemoStore {
       for (const retItem of ret.items) {
         const orderItem = order.items.find((i) => i.productId === retItem.productId);
         if (orderItem) orderItem.refundedQuantity += retItem.quantity;
+      }
+      // §9.48 (added 2026-08-18) — a refund also reverses the returned lines' costOfGoodsSold and
+      // their share of taxCollected, not just `refunds`. Both figures are computed dynamically off
+      // `refundedQuantity` (see getProfitAndLoss/getBalanceSheet), so bumping it above is enough —
+      // no separate ledger entry to write here.
+    }
+    this.persist();
+    return stripBusinessId(ret);
+  }
+
+  // §9.49 (added 2026-08-18) — Staff-tier, not Admin: an exchange moves no money. Ships the
+  // desired variant (stock deducted, 409 if it's since sold out) and updates the order's own
+  // items to match — same line if the whole quantity was exchanged, a new line otherwise.
+  exchangeReturn(businessId: string, id: string): ReturnResponse | { error: string } | null {
+    const ret = this.getReturn(businessId, id);
+    if (!ret) return null;
+    if (ret.resolution !== "Exchange") return { error: "This return isn't resolved as an Exchange — use the Refund action instead." };
+    if (ret.status !== "Received") return { error: "A return must be received before it can be exchanged." };
+
+    for (const retItem of ret.items) {
+      if (!retItem.desiredVariantId) continue;
+      const product = this.getProductById(retItem.productId);
+      const desiredVariant = product?.variants.find((v) => v.id === retItem.desiredVariantId);
+      if (desiredVariant && desiredVariant.stockQuantity < retItem.quantity) {
+        return { error: `${desiredVariant.attributeSummary} has since sold out — can't complete this exchange.` };
+      }
+    }
+
+    ret.status = "Exchanged";
+    ret.exchanged = true;
+    ret.exchangedAt = new Date().toISOString();
+    ret.statusHistory.push({ status: "Exchanged", timestamp: ret.exchangedAt, note: null });
+
+    const order = this.getOrder(businessId, ret.orderId);
+    for (const retItem of ret.items) {
+      if (!retItem.desiredVariantId) continue;
+      const product = this.getProductById(retItem.productId);
+      const desiredVariant = product?.variants.find((v) => v.id === retItem.desiredVariantId);
+      if (desiredVariant) desiredVariant.stockQuantity -= retItem.quantity;
+
+      const orderItem = order?.items.find((i) => i.productId === retItem.productId && i.variantId === retItem.variantId);
+      if (!orderItem) continue;
+      if (orderItem.quantity === retItem.quantity) {
+        orderItem.variantId = retItem.desiredVariantId;
+        orderItem.variantSummary = retItem.desiredVariantSummary;
+      } else if (order) {
+        orderItem.quantity -= retItem.quantity;
+        orderItem.lineTotal = round2(orderItem.unitPrice * orderItem.quantity);
+        order.items.push({
+          productId: retItem.productId,
+          variantId: retItem.desiredVariantId,
+          variantSummary: retItem.desiredVariantSummary,
+          productName: orderItem.productName,
+          unitPrice: orderItem.unitPrice,
+          quantity: retItem.quantity,
+          refundedQuantity: 0,
+          lineTotal: round2(orderItem.unitPrice * retItem.quantity),
+        });
       }
     }
     this.persist();
@@ -1024,7 +1116,7 @@ class DemoStore {
   }
 
   createPromotion(businessId: string, data: CreatePromotionRequest): PromotionResponse {
-    const promo = { id: uid("promo"), businessId, usedCount: 0, isLiveNow: false, ...data };
+    const promo = { id: uid("promo"), businessId, usedCount: 0, isLiveNow: false, visibility: "Public" as const, ...data };
     promo.isLiveNow = this.promotionIsLiveNow(promo);
     this.data.promotions.push(promo);
     this.persist();
@@ -1154,6 +1246,16 @@ class DemoStore {
       createdAt: new Date().toISOString(),
     });
     this.persist();
+  }
+
+  sendDiscountEmail(_businessId: string, data: SendDiscountEmailRequest): SendDiscountEmailResult {
+    const recipientIds = new Set(data.customerUserIds ?? []);
+    if (data.customerGroupId) {
+      this.data.customerGroupMembers.filter((m) => m.groupId === data.customerGroupId).forEach((m) => recipientIds.add(m.customerUserId));
+    }
+    // The demo has no marketing opt-out modeled on customers, so everyone in scope "receives" it.
+    const totalRecipients = recipientIds.size;
+    return { totalRecipients, sent: totalRecipients, skippedOptedOut: 0 };
   }
 
   listShippingZones(businessId: string): ShippingZoneResponse[] {
@@ -1288,9 +1390,20 @@ class DemoStore {
 
   // Revenue-recognition rule shared with getDashboard() and SuperOffice's getAnalytics() —
   // "Delivered = revenue" is stated three times across both blueprints specifically so these
-  // numbers never quietly disagree; keep every caller going through this one helper.
+  // numbers never quietly disagree; keep every caller going through this one helper. Treats
+  // PickedUp the same as Delivered for a Pickup order (§9.47, added 2026-08-18).
   private deliveredOrdersInWindow(businessId: string, fromT: number, toT: number): OrderResponse[] {
-    return this.data.orders.filter((o) => o.businessId === businessId && o.status === "Delivered" && +new Date(o.placedAt) >= fromT && +new Date(o.placedAt) <= toT);
+    return this.data.orders.filter((o) => o.businessId === businessId && isOrderFinished(o.status) && +new Date(o.placedAt) >= fromT && +new Date(o.placedAt) <= toT);
+  }
+
+  // §9.48 (added 2026-08-18) — no line-level tax breakdown exists on OrderResponse, so a
+  // refund's share of tax is prorated by the fraction of the order's quantity that's been
+  // returned, the same basis the COGS reversal above uses.
+  private orderRemainingTax(order: OrderResponse): number {
+    const totalQty = order.items.reduce((sum, i) => sum + i.quantity, 0);
+    if (totalQty === 0) return order.taxAmount;
+    const refundedQty = order.items.reduce((sum, i) => sum + i.refundedQuantity, 0);
+    return order.taxAmount * (1 - refundedQty / totalQty);
   }
 
   getProfitAndLoss(businessId: string, from: string, to: string): ProfitAndLossResponse {
@@ -1309,13 +1422,19 @@ class DemoStore {
         const agent = this.data.deliveryAgents.find((a) => a.businessId === businessId && a.userId === o.deliveryAgentUserId);
         return sum + (agent?.deliveryCharge ?? 0);
       }, 0);
+    // §9.48 (added 2026-08-18) — a refund reverses the returned lines' costOfGoodsSold and their
+    // share of taxCollected, not just `refunds`. Both are computed fresh here off `quantity` net
+    // of `refundedQuantity` (see refundReturn — a refund is what bumps refundedQuantity), so the
+    // reversal falls out of the same loop rather than needing a separate ledger adjustment.
     let costOfGoodsSold = 0;
     let uncostedOrderCount = 0;
     for (const order of delivered) {
       let hasUncosted = false;
       for (const item of order.items) {
+        const remainingQty = item.quantity - item.refundedQuantity;
+        if (remainingQty <= 0) continue;
         const product = this.getProductById(item.productId);
-        if (product?.costPrice != null) costOfGoodsSold += product.costPrice * item.quantity;
+        if (product?.costPrice != null) costOfGoodsSold += product.costPrice * remainingQty;
         else hasUncosted = true;
       }
       if (hasUncosted) uncostedOrderCount++;
@@ -1323,7 +1442,7 @@ class DemoStore {
     const grossProfit = revenue - refunds - costOfGoodsSold;
     const grossMarginPercent = revenue > 0 ? +((grossProfit / revenue) * 100).toFixed(1) : 0;
     const netProfit = grossProfit - expenses - deliveryPayouts;
-    const taxCollected = delivered.reduce((sum, o) => sum + o.taxAmount, 0);
+    const taxCollected = delivered.reduce((sum, o) => sum + this.orderRemainingTax(o), 0);
     return {
       from,
       to,
@@ -1342,12 +1461,14 @@ class DemoStore {
 
   getBalanceSheet(businessId: string): BalanceSheetResponse {
     const orders = this.data.orders.filter((o) => o.businessId === businessId);
-    const revenue = orders.filter((o) => o.status === "Delivered").reduce((sum, o) => sum + o.total, 0);
+    const revenue = orders.filter((o) => isOrderFinished(o.status)).reduce((sum, o) => sum + o.total, 0);
     const refunds = orders.filter((o) => o.paymentStatus === "Refunded").reduce((sum, o) => sum + o.total, 0);
     const expensesTotal = this.data.expenses.filter((e) => e.businessId === businessId).reduce((sum, e) => sum + e.amount, 0);
     const cashPosition = round2(revenue - refunds - expensesTotal);
     const valuation = this.getValuation(businessId);
-    const taxPayable = round2(orders.filter((o) => o.status === "Delivered").reduce((sum, o) => sum + o.taxAmount, 0));
+    // §9.48 — a refund reverses its share of tax payable too, same basis as the P&L (see
+    // orderRemainingTax).
+    const taxPayable = round2(orders.filter((o) => isOrderFinished(o.status)).reduce((sum, o) => sum + this.orderRemainingTax(o), 0));
     const giftCardLiability = this.giftCardLiability(businessId);
     const totalAssets = round2(cashPosition + valuation.totalValueAtCost);
     const totalLiabilities = round2(taxPayable + giftCardLiability);
@@ -1387,7 +1508,7 @@ class DemoStore {
       const day = o.placedAt.slice(0, 10);
       const entry = byDay.get(day) ?? { revenue: 0, orderCount: 0 };
       entry.orderCount += 1;
-      if (o.status === "Delivered") entry.revenue += o.total;
+      if (isOrderFinished(o.status)) entry.revenue += o.total;
       byDay.set(day, entry);
     }
     const dailySales = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, revenue: round2(v.revenue), orderCount: v.orderCount }));
@@ -1449,13 +1570,13 @@ class DemoStore {
   getAnalytics(): TenantAnalyticsResponse {
     const businesses = this.data.businesses.map((b) => {
       const orders = this.data.orders.filter((o) => o.businessId === b.id);
-      const revenue = orders.filter((o) => o.status === "Delivered").reduce((sum, o) => sum + o.total, 0);
+      const revenue = orders.filter((o) => isOrderFinished(o.status)).reduce((sum, o) => sum + o.total, 0);
       const orderCount = orders.filter((o) => o.status !== "Cancelled").length;
       return { businessId: b.id, businessName: b.name, orderCount, revenue: round2(revenue) };
     });
     const productStats = new Map<string, { productId: string; productName: string; quantitySold: number; revenue: number }>();
     for (const order of this.data.orders) {
-      if (order.status !== "Delivered") continue;
+      if (!isOrderFinished(order.status)) continue;
       for (const item of order.items) {
         const entry = productStats.get(item.productId) ?? { productId: item.productId, productName: item.productName, quantitySold: 0, revenue: 0 };
         entry.quantitySold += item.quantity;
@@ -1478,7 +1599,9 @@ class DemoStore {
   // ---------- integrations: webhooks & API keys (added 2026-08-16, §9.39) ----------
 
   webhookEventNames(): string[] {
-    return ["order.created", "order.status_changed", "order.delivered", "product.low_stock", "return.requested", "review.submitted"];
+    // order.picked_up added 2026-08-18, §9.47 — the Pickup-order equivalent of order.delivered;
+    // fired instead of it, never alongside it, when a Pickup order reaches PickedUp.
+    return ["order.created", "order.status_changed", "order.delivered", "order.picked_up", "product.low_stock", "return.requested", "review.submitted"];
   }
 
   listWebhooks(): WebhookResponse[] {

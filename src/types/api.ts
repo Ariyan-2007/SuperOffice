@@ -300,6 +300,9 @@ export interface ProductImportResult {
 }
 
 export type DiscountType = "Percentage" | "FixedAmount";
+// §9.43 (added 2026-08-18) — governs whether the Shop's "available offers" panel lists the code
+// automatically (Public) or it only works when typed exactly (Hidden).
+export type OfferVisibility = "Public" | "Hidden";
 
 export interface CouponResponse {
   id: string;
@@ -311,8 +314,9 @@ export interface CouponResponse {
   maxUses: number | null;
   usedCount: number;
   startsAt: string;
-  expiresAt: string;
+  expiresAt: string | null; // nullable since 2026-08-18, §9.43 — null = never expires
   isActive: boolean;
+  visibility: OfferVisibility; // added 2026-08-18, §9.43
 }
 
 export interface CreateCouponRequest {
@@ -322,13 +326,15 @@ export interface CreateCouponRequest {
   minOrderAmount?: number | null;
   maxUses?: number | null;
   startsAt: string;
-  expiresAt: string;
+  expiresAt?: string | null; // omit/null for a coupon that never expires
+  visibility?: OfferVisibility; // defaults to "Public"
 }
 
 export interface UpdateCouponRequest {
   isActive: boolean;
-  expiresAt: string;
+  expiresAt: string | null;
   maxUses: number | null;
+  visibility: OfferVisibility;
 }
 
 export interface CreateStaffRequest {
@@ -358,6 +364,8 @@ export type OrderStatus =
   | "Confirmed"
   | "OutForDelivery"
   | "Delivered"
+  | "AwaitingPickup" // added 2026-08-18, §9.47 — Pickup-order equivalent of OutForDelivery
+  | "PickedUp" // added 2026-08-18, §9.47 — Pickup-order equivalent of Delivered
   | "Cancelled"
   | "Refunded";
 
@@ -693,9 +701,11 @@ export interface BusinessDashboardResponse {
   currency: string;
 }
 
-// ---------- returns / RMAs (added 2026-08-16, §9.21) ----------
+// ---------- returns / RMAs / exchanges (added 2026-08-16, §9.21; Exchange added 2026-08-18, §9.49) ----------
 
-export type ReturnStatus = "Requested" | "Approved" | "Rejected" | "Received" | "Refunded" | "Cancelled";
+// "Exchanged" is a distinct terminal state from "Refunded" — an exchange moves no money. Never
+// render it with the same badge color as "Refunded".
+export type ReturnStatus = "Requested" | "Approved" | "Rejected" | "Received" | "Refunded" | "Cancelled" | "Exchanged";
 export type ReturnReason = "Damaged" | "WrongItem" | "NotAsDescribed" | "ChangedMind" | "SizeOrFit" | "Other";
 export type ReturnResolution = "Refund" | "Exchange" | "StoreCredit";
 
@@ -706,6 +716,9 @@ export interface ReturnItem {
   quantity: number;
   unitPrice: number;
   lineRefund: number;
+  // Added 2026-08-18, §9.49 — populated only on a line whose Resolution is Exchange.
+  desiredVariantId: string | null;
+  desiredVariantSummary: string | null; // e.g. "Large" — display label for the variant above
 }
 
 export interface ReturnStatusEventResponse {
@@ -730,6 +743,8 @@ export interface ReturnResponse {
   currency: string;
   restocked: boolean;
   refundedAt: string | null;
+  exchanged: boolean; // added 2026-08-18, §9.49 — mirrors restocked/refundedAt
+  exchangedAt: string | null;
   statusHistory: ReturnStatusEventResponse[];
   createdAt: string;
 }
@@ -787,6 +802,7 @@ export interface PromotionResponse {
   endsAt: string | null;
   isActive: boolean;
   isLiveNow: boolean;
+  visibility: OfferVisibility; // added 2026-08-18, §9.43 — meaningless when code is null (automatic)
 }
 
 export interface CreatePromotionRequest {
@@ -809,6 +825,7 @@ export interface CreatePromotionRequest {
   startsAt: string;
   endsAt: string | null;
   isActive: boolean;
+  visibility?: OfferVisibility; // defaults to "Public"; meaningless when code is null
 }
 
 export interface CustomerGroupResponse {
@@ -859,14 +876,30 @@ export interface StoreCreditEntry {
 }
 
 export interface GrantStoreCreditRequest {
-  amount: number;
+  amount: number; // negative amounts deduct
   note: string;
+  expiresAt?: string | null; // added 2026-08-18, §9.43 — omit/null for a permanent grant (the usual case)
 }
 
 export interface StoreCreditBalanceResponse {
   balance: number;
   currency: string;
   recentEntries: StoreCreditEntry[];
+}
+
+// ---------- discount emails (added 2026-08-18, §9.43) — the delivery mechanism a Hidden coupon
+// or promotion code needs, since it won't ever surface itself on the Shop. ----------
+
+export interface SendDiscountEmailRequest {
+  code: string; // a Coupon or Promotion code — resolved automatically, no "type" field needed
+  customerUserIds: string[] | null; // explicit recipients
+  customerGroupId: string | null; // whole segment's members — unioned with customerUserIds, not either/or
+}
+
+export interface SendDiscountEmailResult {
+  totalRecipients: number;
+  sent: number;
+  skippedOptedOut: number;
 }
 
 export interface ShippingRate {

@@ -180,7 +180,12 @@ type OrderBase = Omit<
   | "items"
 > & { items: Omit<OrderItem, "variantId" | "variantSummary" | "refundedQuantity">[] };
 
-function finishOrder(base: OrderBase, contactEmail: string, contactPhone: string): OrderResponse {
+function finishOrder(
+  base: OrderBase,
+  contactEmail: string,
+  contactPhone: string,
+  fulfillmentMethod: OrderResponse["fulfillmentMethod"] = "Delivery",
+): OrderResponse {
   const refundedAmount = base.paymentStatus === "Refunded" ? base.total : 0;
   return {
     ...base,
@@ -198,7 +203,7 @@ function finishOrder(base: OrderBase, contactEmail: string, contactPhone: string
     amountDue: base.paymentStatus === "Paid" || base.paymentStatus === "Refunded" ? 0 : base.total,
     refundedAmount,
     currency: "USD",
-    fulfillmentMethod: "Delivery",
+    fulfillmentMethod,
     billingAddress: base.shippingAddress,
     shippingMethodName: null,
     carrierName: null,
@@ -444,8 +449,8 @@ export function buildSeed(): DemoData {
   ];
 
   const coupons: CouponResponse[] = [
-    { id: "cp-welcome", businessId: BIZ_1, code: "WELCOME10", discountType: "Percentage", discountValue: 10, minOrderAmount: 20, maxUses: 500, usedCount: 128, startsAt: daysAgo(60), expiresAt: daysAgo(-90), isActive: true },
-    { id: "cp-summer", businessId: BIZ_1, code: "SUMMER5", discountType: "FixedAmount", discountValue: 5, minOrderAmount: 15, maxUses: 200, usedCount: 200, startsAt: daysAgo(120), expiresAt: daysAgo(5), isActive: false },
+    { id: "cp-welcome", businessId: BIZ_1, code: "WELCOME10", discountType: "Percentage", discountValue: 10, minOrderAmount: 20, maxUses: 500, usedCount: 128, startsAt: daysAgo(60), expiresAt: daysAgo(-90), isActive: true, visibility: "Public" },
+    { id: "cp-summer", businessId: BIZ_1, code: "SUMMER5", discountType: "FixedAmount", discountValue: 5, minOrderAmount: 15, maxUses: 200, usedCount: 200, startsAt: daysAgo(120), expiresAt: daysAgo(5), isActive: false, visibility: "Public" },
   ];
 
   const deliveryAgents: DeliveryAgentResponse[] = [
@@ -568,22 +573,62 @@ export function buildSeed(): DemoData {
       "isabel.torres@example.test",
       "+1 555 0123",
     ),
+    // §9.47 (added 2026-08-18) — Pickup orders move through AwaitingPickup/PickedUp instead of
+    // OutForDelivery/Delivered, seeded here so the BackOffice UI's branching status dropdown and
+    // Delivery-card hiding are exercisable in Showcase Mode.
+    finishOrder(
+      {
+        id: "o-7", businessId: BIZ_1, orderNumber: "VAS-20260815-0007", customerUserId: "u-cust-2", items: items6, subtotal: 6.5, couponCode: null, discountAmount: 0, deliveryFee: 0, total: 6.5, status: "AwaitingPickup", paymentStatus: "Paid", shippingAddress: null, deliveryAgentUserId: null, placedAt: hoursAgo(10),
+        statusHistory: [
+          { status: "PendingPayment", timestamp: hoursAgo(10), note: "Order placed." },
+          { status: "Processing", timestamp: hoursAgo(9.5), note: "" },
+          { status: "AwaitingPickup", timestamp: hoursAgo(8), note: "Ready at counter." },
+        ],
+        paymentStatusHistory: [
+          { status: "Pending", timestamp: hoursAgo(10), note: "" },
+          { status: "Paid", timestamp: hoursAgo(9.5), note: "" },
+        ],
+      },
+      "daniel.osei@example.test",
+      "+1 555 0122",
+      "Pickup",
+    ),
+    finishOrder(
+      {
+        id: "o-8", businessId: BIZ_1, orderNumber: "VAS-20260811-0008", customerUserId: "u-cust-1", items: items3, subtotal: 28.5, couponCode: null, discountAmount: 0, deliveryFee: 0, total: 28.5, status: "PickedUp", paymentStatus: "Paid", shippingAddress: null, deliveryAgentUserId: null, placedAt: daysAgo(4),
+        statusHistory: [
+          { status: "PendingPayment", timestamp: daysAgo(4), note: "Order placed." },
+          { status: "Processing", timestamp: hoursAgo(94), note: "" },
+          { status: "AwaitingPickup", timestamp: hoursAgo(90), note: "Ready at counter." },
+          { status: "PickedUp", timestamp: hoursAgo(70), note: "Collected in-store." },
+        ],
+        paymentStatusHistory: [
+          { status: "Pending", timestamp: daysAgo(4), note: "" },
+          { status: "Paid", timestamp: hoursAgo(95), note: "" },
+        ],
+      },
+      "grace.kim@example.test",
+      "+1 555 0121",
+      "Pickup",
+    ),
   ];
 
   const returns: DemoData["returns"] = [
     {
       id: "ret-1", businessId: BIZ_1, rmaNumber: "RMA-0001", orderId: "o-1", orderNumber: "VAS-20260810-0001", customerUserId: "u-cust-1",
-      items: [{ productId: "p-1", variantId: null, productName: "Organic Avocado (each)", quantity: 2, unitPrice: 1.5, lineRefund: 3.0 }],
+      items: [{ productId: "p-1", variantId: null, productName: "Organic Avocado (each)", quantity: 2, unitPrice: 1.5, lineRefund: 3.0, desiredVariantId: null, desiredVariantSummary: null }],
       reason: "Damaged", reasonNote: "Bruised on arrival", resolution: "Refund",
       status: "Requested", requestedRefundAmount: 3.0, approvedRefundAmount: null, currency: "USD", restocked: false, refundedAt: null,
+      exchanged: false, exchangedAt: null,
       statusHistory: [{ status: "Requested", timestamp: hoursAgo(18), note: null }],
       createdAt: hoursAgo(18),
     },
     {
       id: "ret-2", businessId: BIZ_1, rmaNumber: "RMA-0002", orderId: "o-1", orderNumber: "VAS-20260810-0001", customerUserId: "u-cust-1",
-      items: [{ productId: "p-1", variantId: null, productName: "Organic Avocado (each)", quantity: 1, unitPrice: 1.5, lineRefund: 1.5 }],
+      items: [{ productId: "p-1", variantId: null, productName: "Organic Avocado (each)", quantity: 1, unitPrice: 1.5, lineRefund: 1.5, desiredVariantId: null, desiredVariantSummary: null }],
       reason: "WrongItem", reasonNote: "Wrong item shipped", resolution: "Refund",
       status: "Received", requestedRefundAmount: 1.5, approvedRefundAmount: 1.5, currency: "USD", restocked: true, refundedAt: null,
+      exchanged: false, exchangedAt: null,
       statusHistory: [
         { status: "Requested", timestamp: daysAgo(3), note: null },
         { status: "Approved", timestamp: daysAgo(2), note: "Approved in full." },
@@ -593,9 +638,10 @@ export function buildSeed(): DemoData {
     },
     {
       id: "ret-3", businessId: BIZ_1, rmaNumber: "RMA-0003", orderId: "o-1", orderNumber: "VAS-20260810-0001", customerUserId: "u-cust-1",
-      items: [{ productId: "p-1", variantId: null, productName: "Organic Avocado (each)", quantity: 3, unitPrice: 1.5, lineRefund: 4.0 }],
+      items: [{ productId: "p-1", variantId: null, productName: "Organic Avocado (each)", quantity: 3, unitPrice: 1.5, lineRefund: 4.0, desiredVariantId: null, desiredVariantSummary: null }],
       reason: "ChangedMind", reasonNote: "No longer needed", resolution: "Refund",
       status: "Refunded", requestedRefundAmount: 4.5, approvedRefundAmount: 4.0, currency: "USD", restocked: true, refundedAt: daysAgo(6),
+      exchanged: false, exchangedAt: null,
       statusHistory: [
         { status: "Requested", timestamp: daysAgo(9), note: null },
         { status: "Approved", timestamp: daysAgo(8), note: "Restocking fee applied." },
@@ -603,6 +649,26 @@ export function buildSeed(): DemoData {
         { status: "Refunded", timestamp: daysAgo(6), note: null },
       ],
       createdAt: daysAgo(9),
+    },
+    // §9.49 (added 2026-08-18) — an Exchange-resolution return, Received and ready for the
+    // /exchange action: same product, same price, different variant (Trail Mix Small → Large).
+    {
+      id: "ret-4", businessId: BIZ_1, rmaNumber: "RMA-0004", orderId: "o-8", orderNumber: "VAS-20260811-0008", customerUserId: "u-cust-1",
+      items: [
+        {
+          productId: "p-7", variantId: null, productName: "Trail Mix (16oz)", quantity: 1, unitPrice: 9.5, lineRefund: 9.5,
+          desiredVariantId: "pv-1", desiredVariantSummary: "Size: Small",
+        },
+      ],
+      reason: "SizeOrFit", reasonNote: "Wants the small bag instead — easier to pack for hikes.", resolution: "Exchange",
+      status: "Received", requestedRefundAmount: 9.5, approvedRefundAmount: 9.5, currency: "USD", restocked: true, refundedAt: null,
+      exchanged: false, exchangedAt: null,
+      statusHistory: [
+        { status: "Requested", timestamp: daysAgo(2), note: null },
+        { status: "Approved", timestamp: hoursAgo(36), note: "Approved — ships Small on exchange." },
+        { status: "Received", timestamp: hoursAgo(6), note: null },
+      ],
+      createdAt: daysAgo(2),
     },
   ];
 
@@ -615,8 +681,8 @@ export function buildSeed(): DemoData {
   ];
 
   const promotions: DemoData["promotions"] = [
-    { id: "promo-1", businessId: BIZ_1, name: "Free Shipping Weekend", code: null, effect: "FreeShipping", scope: "Order", value: 0, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: 25, customerGroupIds: [], firstOrderOnly: false, maxUses: null, maxUsesPerCustomer: null, usedCount: 34, priority: 1, stackable: true, startsAt: daysAgo(10), endsAt: daysAgo(-4), isActive: true, isLiveNow: true },
-    { id: "promo-2", businessId: BIZ_1, name: "New Customer 15% Off", code: "NEWHERE", effect: "PercentageOff", scope: "Order", value: 15, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: null, customerGroupIds: [], firstOrderOnly: true, maxUses: null, maxUsesPerCustomer: 1, usedCount: 12, priority: 2, stackable: false, startsAt: daysAgo(60), endsAt: null, isActive: true, isLiveNow: true },
+    { id: "promo-1", businessId: BIZ_1, name: "Free Shipping Weekend", code: null, effect: "FreeShipping", scope: "Order", value: 0, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: 25, customerGroupIds: [], firstOrderOnly: false, maxUses: null, maxUsesPerCustomer: null, usedCount: 34, priority: 1, stackable: true, startsAt: daysAgo(10), endsAt: daysAgo(-4), isActive: true, isLiveNow: true, visibility: "Public" },
+    { id: "promo-2", businessId: BIZ_1, name: "New Customer 15% Off", code: "NEWHERE", effect: "PercentageOff", scope: "Order", value: 15, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: null, customerGroupIds: [], firstOrderOnly: true, maxUses: null, maxUsesPerCustomer: 1, usedCount: 12, priority: 2, stackable: false, startsAt: daysAgo(60), endsAt: null, isActive: true, isLiveNow: true, visibility: "Hidden" },
   ];
 
   const customerGroups: DemoData["customerGroups"] = [

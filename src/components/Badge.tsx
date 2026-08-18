@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-type Tone = "success" | "warning" | "danger" | "info" | "neutral" | "brand";
+type Tone = "success" | "warning" | "danger" | "info" | "neutral" | "brand" | "exchange";
 
 export function Badge({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode }) {
   return (
@@ -26,6 +26,8 @@ const ORDER_STATUS_TONE: Record<string, Tone> = {
   Confirmed: "info",
   OutForDelivery: "brand",
   Delivered: "success",
+  AwaitingPickup: "brand", // §9.47 — occupies the same position as OutForDelivery, for a Pickup order
+  PickedUp: "success", // §9.47 — occupies the same position as Delivered, for a Pickup order
   Cancelled: "danger",
   Refunded: "neutral",
 };
