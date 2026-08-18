@@ -46,6 +46,8 @@ import type {
   PromotionResponse,
   ReturnResponse,
   ReviewResponse,
+  SendDiscountEmailRequest,
+  SendDiscountEmailResult,
   ReviewStatus,
   ShippingZoneResponse,
   StockMovementResponse,
@@ -636,8 +638,9 @@ class DemoStore {
       maxUses: data.maxUses ?? null,
       usedCount: 0,
       startsAt: data.startsAt,
-      expiresAt: data.expiresAt,
+      expiresAt: data.expiresAt ?? null,
       isActive: true,
+      visibility: data.visibility ?? "Public",
     };
     this.data.coupons.push(coupon);
     this.persist();
@@ -1024,7 +1027,7 @@ class DemoStore {
   }
 
   createPromotion(businessId: string, data: CreatePromotionRequest): PromotionResponse {
-    const promo = { id: uid("promo"), businessId, usedCount: 0, isLiveNow: false, ...data };
+    const promo = { id: uid("promo"), businessId, usedCount: 0, isLiveNow: false, visibility: "Public" as const, ...data };
     promo.isLiveNow = this.promotionIsLiveNow(promo);
     this.data.promotions.push(promo);
     this.persist();
@@ -1154,6 +1157,16 @@ class DemoStore {
       createdAt: new Date().toISOString(),
     });
     this.persist();
+  }
+
+  sendDiscountEmail(_businessId: string, data: SendDiscountEmailRequest): SendDiscountEmailResult {
+    const recipientIds = new Set(data.customerUserIds ?? []);
+    if (data.customerGroupId) {
+      this.data.customerGroupMembers.filter((m) => m.groupId === data.customerGroupId).forEach((m) => recipientIds.add(m.customerUserId));
+    }
+    // The demo has no marketing opt-out modeled on customers, so everyone in scope "receives" it.
+    const totalRecipients = recipientIds.size;
+    return { totalRecipients, sent: totalRecipients, skippedOptedOut: 0 };
   }
 
   listShippingZones(businessId: string): ShippingZoneResponse[] {

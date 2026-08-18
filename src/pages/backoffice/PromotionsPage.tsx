@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Megaphone, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Mail, Megaphone, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { categoryApi, customerGroupApi, productApi, promotionApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
@@ -13,11 +13,13 @@ import { PageLoader, EmptyState } from "../../components/Feedback";
 import { Badge } from "../../components/Badge";
 import { Modal, ConfirmDialog } from "../../components/Modal";
 import { Field, Input, Select } from "../../components/Field";
+import { SendDiscountEmailModal } from "../../components/SendDiscountEmailModal";
 import { useToast } from "../../context/ToastContext";
 import type {
   CreatePromotionRequest,
   CustomerGroupRequest,
   CustomerGroupResponse,
+  OfferVisibility,
   PromotionEffect,
   PromotionResponse,
   PromotionScope,
@@ -40,6 +42,7 @@ interface PromotionForm {
   startsAt: string;
   endsAt: string;
   isActive: boolean;
+  visibility: OfferVisibility;
   productIds: string[];
   categoryIds: string[];
   customerGroupIds: string[];
@@ -65,6 +68,7 @@ function PromotionsTab() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<PromotionResponse | "new" | null>(null);
   const [deleting, setDeleting] = useState<PromotionResponse | null>(null);
+  const [sendingCode, setSendingCode] = useState<string | null>(null);
 
   const { data: promotions, isLoading } = useQuery({
     queryKey: ["promotions", businessId],
@@ -121,6 +125,11 @@ function PromotionsTab() {
       header: "",
       render: (p) => (
         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          {p.code && (
+            <Button size="sm" variant="ghost" onClick={() => setSendingCode(p.code!)} title="Send to customers">
+              <Mail size={13} />
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setEditing(p)}><Pencil size={13} /></Button>
           <Button size="sm" variant="ghost" onClick={() => setDeleting(p)} style={{ color: "var(--danger)" }}><Trash2 size={13} /></Button>
         </div>
@@ -167,6 +176,8 @@ function PromotionsTab() {
         onConfirm={() => deleting && deleteMutation.mutate(deleting.id)}
         onCancel={() => setDeleting(null)}
       />
+
+      {sendingCode && <SendDiscountEmailModal code={sendingCode} onClose={() => setSendingCode(null)} />}
     </div>
   );
 }
@@ -209,6 +220,7 @@ function PromotionModal({
           startsAt: promotion.startsAt.slice(0, 16),
           endsAt: promotion.endsAt ? promotion.endsAt.slice(0, 16) : "",
           isActive: promotion.isActive,
+          visibility: promotion.visibility,
           productIds: promotion.productIds,
           categoryIds: promotion.categoryIds,
           customerGroupIds: promotion.customerGroupIds,
@@ -230,6 +242,7 @@ function PromotionModal({
           startsAt: new Date().toISOString().slice(0, 16),
           endsAt: "",
           isActive: true,
+          visibility: "Public",
           productIds: [],
           categoryIds: [],
           customerGroupIds: [],
@@ -238,6 +251,7 @@ function PromotionModal({
 
   const effect = watch("effect");
   const scope = watch("scope");
+  const code = watch("code");
   const productIds = watch("productIds");
   const categoryIds = watch("categoryIds");
   const customerGroupIds = watch("customerGroupIds");
@@ -267,6 +281,7 @@ function PromotionModal({
       startsAt: new Date(v.startsAt).toISOString(),
       endsAt: v.endsAt ? new Date(v.endsAt).toISOString() : null,
       isActive: v.isActive,
+      visibility: v.visibility,
     };
     if (promotion) onUpdate(promotion.id, data);
     else onCreate(data);
@@ -332,6 +347,15 @@ function PromotionModal({
           <label className="checkbox-row"><input type="checkbox" {...register("stackable")} /> Stackable with other promotions</label>
           <label className="checkbox-row"><input type="checkbox" {...register("isActive")} /> Active</label>
         </div>
+
+        {code.trim() && (
+          <Field label="Availability" hint="Meaningless for automatic promotions (no code) — only shown here when a code is set">
+            <Select {...register("visibility")}>
+              <option value="Public">Show as an available offer</option>
+              <option value="Hidden">Only by direct code entry</option>
+            </Select>
+          </Field>
+        )}
 
         {scope === "Products" && (
           <MultiSelectList label="Applies to products" items={products} selected={productIds} onToggle={(id) => toggle("productIds", id, productIds)} />

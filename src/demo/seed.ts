@@ -444,8 +444,8 @@ export function buildSeed(): DemoData {
   ];
 
   const coupons: CouponResponse[] = [
-    { id: "cp-welcome", businessId: BIZ_1, code: "WELCOME10", discountType: "Percentage", discountValue: 10, minOrderAmount: 20, maxUses: 500, usedCount: 128, startsAt: daysAgo(60), expiresAt: daysAgo(-90), isActive: true },
-    { id: "cp-summer", businessId: BIZ_1, code: "SUMMER5", discountType: "FixedAmount", discountValue: 5, minOrderAmount: 15, maxUses: 200, usedCount: 200, startsAt: daysAgo(120), expiresAt: daysAgo(5), isActive: false },
+    { id: "cp-welcome", businessId: BIZ_1, code: "WELCOME10", discountType: "Percentage", discountValue: 10, minOrderAmount: 20, maxUses: 500, usedCount: 128, startsAt: daysAgo(60), expiresAt: daysAgo(-90), isActive: true, visibility: "Public" },
+    { id: "cp-summer", businessId: BIZ_1, code: "SUMMER5", discountType: "FixedAmount", discountValue: 5, minOrderAmount: 15, maxUses: 200, usedCount: 200, startsAt: daysAgo(120), expiresAt: daysAgo(5), isActive: false, visibility: "Public" },
   ];
 
   const deliveryAgents: DeliveryAgentResponse[] = [
@@ -615,8 +615,8 @@ export function buildSeed(): DemoData {
   ];
 
   const promotions: DemoData["promotions"] = [
-    { id: "promo-1", businessId: BIZ_1, name: "Free Shipping Weekend", code: null, effect: "FreeShipping", scope: "Order", value: 0, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: 25, customerGroupIds: [], firstOrderOnly: false, maxUses: null, maxUsesPerCustomer: null, usedCount: 34, priority: 1, stackable: true, startsAt: daysAgo(10), endsAt: daysAgo(-4), isActive: true, isLiveNow: true },
-    { id: "promo-2", businessId: BIZ_1, name: "New Customer 15% Off", code: "NEWHERE", effect: "PercentageOff", scope: "Order", value: 15, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: null, customerGroupIds: [], firstOrderOnly: true, maxUses: null, maxUsesPerCustomer: 1, usedCount: 12, priority: 2, stackable: false, startsAt: daysAgo(60), endsAt: null, isActive: true, isLiveNow: true },
+    { id: "promo-1", businessId: BIZ_1, name: "Free Shipping Weekend", code: null, effect: "FreeShipping", scope: "Order", value: 0, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: 25, customerGroupIds: [], firstOrderOnly: false, maxUses: null, maxUsesPerCustomer: null, usedCount: 34, priority: 1, stackable: true, startsAt: daysAgo(10), endsAt: daysAgo(-4), isActive: true, isLiveNow: true, visibility: "Public" },
+    { id: "promo-2", businessId: BIZ_1, name: "New Customer 15% Off", code: "NEWHERE", effect: "PercentageOff", scope: "Order", value: 15, productIds: [], categoryIds: [], buyQuantity: 0, getQuantity: 0, minOrderAmount: null, customerGroupIds: [], firstOrderOnly: true, maxUses: null, maxUsesPerCustomer: 1, usedCount: 12, priority: 2, stackable: false, startsAt: daysAgo(60), endsAt: null, isActive: true, isLiveNow: true, visibility: "Hidden" },
   ];
 
   const customerGroups: DemoData["customerGroups"] = [

@@ -244,14 +244,19 @@ function StoreCreditTab() {
 }
 
 function GrantForm({ onSubmit, onCancel, loading }: { onSubmit: (data: GrantStoreCreditRequest) => void; onCancel: () => void; loading: boolean }) {
-  const { register, handleSubmit } = useForm<{ amount: number; note: string }>({ defaultValues: { amount: 10, note: "" } });
+  const { register, handleSubmit } = useForm<{ amount: number; note: string; expiresAt: string }>({
+    defaultValues: { amount: 10, note: "", expiresAt: "" },
+  });
   return (
     <form
       className="section-stack"
-      onSubmit={handleSubmit((v) => onSubmit({ amount: v.amount, note: v.note }))}
+      onSubmit={handleSubmit((v) =>
+        onSubmit({ amount: v.amount, note: v.note, expiresAt: v.expiresAt ? new Date(v.expiresAt).toISOString() : null }),
+      )}
     >
       <Field label="Amount" hint="Negative amounts deduct"><Input type="number" step="0.01" {...register("amount", { required: true, valueAsNumber: true })} /></Field>
       <Field label="Note"><Input {...register("note", { required: true })} placeholder="Reason for this credit" /></Field>
+      <Field label="Expires At" optional hint="Leave blank for a permanent grant"><Input type="datetime-local" {...register("expiresAt")} /></Field>
       <div className="form-actions">
         <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
         <Button type="submit" variant="primary" loading={loading}>Save</Button>

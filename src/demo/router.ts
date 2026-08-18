@@ -26,6 +26,7 @@ import type {
   ProblemDetails,
   ProductStatus,
   ReviewStatus,
+  SendDiscountEmailRequest,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
@@ -800,6 +801,14 @@ const routes: RouteDef[] = [
       const block = demoStore.setContentImage(params.businessId, params.id, b.url ?? "");
       return block ? ok(block) : fail(404, "Content block not found.");
     },
+  },
+
+  // ---------- discount emails (added 2026-08-18, §9.43) ----------
+  {
+    method: "POST",
+    path: "/api/businesses/:businessId/discount-emails",
+    auth: "required",
+    handler: ({ params, body }) => ok(demoStore.sendDiscountEmail(params.businessId, body as SendDiscountEmailRequest), 201),
   },
 
   // ---------- audit log (added 2026-08-16) ----------
