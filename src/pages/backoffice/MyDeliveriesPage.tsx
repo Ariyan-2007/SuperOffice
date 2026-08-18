@@ -28,8 +28,8 @@ export function MyDeliveriesPage() {
 
   if (isLoading) return <PageLoader />;
 
-  const active = (orders ?? []).filter((o) => !["Delivered", "Cancelled", "Refunded"].includes(o.status));
-  const done = (orders ?? []).filter((o) => ["Delivered", "Cancelled", "Refunded"].includes(o.status));
+  const active = (orders ?? []).filter((o) => !["Delivered", "PickedUp", "Cancelled", "Refunded"].includes(o.status));
+  const done = (orders ?? []).filter((o) => ["Delivered", "PickedUp", "Cancelled", "Refunded"].includes(o.status));
 
   return (
     <div className="section-stack">
@@ -70,7 +70,7 @@ function DeliveryCard({
   readOnly?: boolean;
 }) {
   const [nextStatus, setNextStatus] = useState<OrderStatus | "">("");
-  const options = nextStatusOptions(order.status);
+  const options = nextStatusOptions(order.status, order.fulfillmentMethod);
 
   const mutation = useMutation({
     mutationFn: (status: OrderStatus) => orderApi.setStatus(businessId, order.id, { status, note: "" }),

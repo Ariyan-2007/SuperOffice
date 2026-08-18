@@ -1,8 +1,20 @@
-export function StatCard({ label, value, meta }: { label: string; value: string | number; meta?: string }) {
+import clsx from "clsx";
+
+export function StatCard({
+  label,
+  value,
+  meta,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  meta?: string;
+  tone?: "positive" | "negative";
+}) {
   return (
     <div className="stat-card">
       <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
+      <div className={clsx("stat-value", tone === "positive" && "stat-value-positive", tone === "negative" && "stat-value-negative")}>{value}</div>
       {meta && <div className="stat-meta">{meta}</div>}
     </div>
   );

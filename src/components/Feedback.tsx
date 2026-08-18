@@ -27,6 +27,15 @@ export function InfoBanner({ children }: { children: ReactNode }) {
   );
 }
 
+export function WarningBanner({ children }: { children: ReactNode }) {
+  return (
+    <div className="banner banner-warning">
+      <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+      <span>{children}</span>
+    </div>
+  );
+}
+
 export function EmptyState({
   icon: Icon,
   title,

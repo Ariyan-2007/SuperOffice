@@ -553,6 +553,11 @@ const routes: RouteDef[] = [
       if (!demoStore.getBusiness(params.businessId)?.deliveryModuleEnabled) {
         return fail(409, "Delivery module is disabled for this business.");
       }
+      const existing = demoStore.getOrder(params.businessId, params.orderId);
+      if (existing && existing.fulfillmentMethod !== "Delivery" && existing.fulfillmentMethod !== "ExternalCourier") {
+        // §9.47 (added 2026-08-18) — no courier leg exists to assign an agent to.
+        return fail(409, `Cannot assign a delivery agent to a '${existing.fulfillmentMethod}' order.`);
+      }
       const b = body as AssignDeliveryAgentRequest;
       const order = demoStore.assignDelivery(params.businessId, params.orderId, b.deliveryAgentUserId);
       return order ? ok(order) : fail(404, "Order not found.");
@@ -621,6 +626,18 @@ const routes: RouteDef[] = [
     auth: "required",
     handler: ({ params }) => {
       const result = demoStore.refundReturn(params.businessId, params.returnId);
+      if (!result) return fail(404, "Return not found.");
+      if ("error" in result) return fail(409, result.error);
+      return ok(result);
+    },
+  },
+  {
+    // Added 2026-08-18, §9.49
+    method: "POST",
+    path: "/api/businesses/:businessId/returns/:returnId/exchange",
+    auth: "required",
+    handler: ({ params }) => {
+      const result = demoStore.exchangeReturn(params.businessId, params.returnId);
       if (!result) return fail(404, "Return not found.");
       if ("error" in result) return fail(409, result.error);
       return ok(result);

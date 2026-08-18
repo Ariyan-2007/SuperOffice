@@ -349,6 +349,11 @@ export const returnApi = {
     http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/received`, {}).then((r) => r.data),
   refund: (businessId: string, returnId: string) =>
     http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/refund`, {}).then((r) => r.data),
+  // Added 2026-08-18, §9.49 — Staff-tier (not Admin): an exchange moves no money, so none of
+  // §9.3's reasoning for restricting /refund to Admin applies here. 409s if the return's
+  // resolution isn't Exchange (route to .refund() instead).
+  exchange: (businessId: string, returnId: string) =>
+    http.post<ReturnResponse>(`/api/businesses/${businessId}/returns/${returnId}/exchange`, {}).then((r) => r.data),
 };
 
 // ---------- reviews (added 2026-08-16, §9.25) ----------

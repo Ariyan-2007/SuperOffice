@@ -82,8 +82,12 @@ export function OrderDetailPage() {
 
   const nameOf = (userId: string) => (staff ?? []).find((s) => s.id === userId);
   const assignedAgent = order.deliveryAgentUserId ? nameOf(order.deliveryAgentUserId) : null;
-  const options = nextStatusOptions(order.status);
+  const options = nextStatusOptions(order.status, order.fulfillmentMethod);
   const freeAgents = (agents ?? []).filter((a) => a.status === "Free" || a.userId === order.deliveryAgentUserId);
+  // §9.47 (added 2026-08-18) — assign-delivery and the shipment/tracking form both 409 for a
+  // Pickup or Digital order (no courier leg exists to assign an agent to, or to ship). Hide
+  // both actions entirely for those, same as the disabled-delivery-module case.
+  const hasCourierLeg = order.fulfillmentMethod === "Delivery" || order.fulfillmentMethod === "ExternalCourier";
 
   return (
     <div className="section-stack">
@@ -206,7 +210,7 @@ export function OrderDetailPage() {
             </Card>
           )}
 
-          <ShipmentCard businessId={businessId} order={order} />
+          {hasCourierLeg && <ShipmentCard businessId={businessId} order={order} />}
 
           <Card>
             <CardHeader title="Internal Note" />
@@ -259,47 +263,49 @@ export function OrderDetailPage() {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHeader title="Delivery" />
-            <CardBody>
-              <div className="section-stack">
-                <div style={{ fontSize: 13 }}>
-                  <span className="text-muted">Assigned: </span>
-                  {assignedAgent ? assignedAgent.fullName : order.deliveryAgentUserId ? order.deliveryAgentUserId.slice(0, 8) + "…" : "Unassigned"}
+          {hasCourierLeg && (
+            <Card>
+              <CardHeader title="Delivery" />
+              <CardBody>
+                <div className="section-stack">
+                  <div style={{ fontSize: 13 }}>
+                    <span className="text-muted">Assigned: </span>
+                    {assignedAgent ? assignedAgent.fullName : order.deliveryAgentUserId ? order.deliveryAgentUserId.slice(0, 8) + "…" : "Unassigned"}
+                  </div>
+                  {business?.deliveryModuleEnabled ? (
+                    <>
+                      <Field label="Assign Delivery Agent">
+                        <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+                          <option value="">Choose an agent…</option>
+                          {freeAgents.map((a) => {
+                            const info = nameOf(a.userId);
+                            return (
+                              <option key={a.id} value={a.userId}>
+                                {info ? info.fullName : a.userId.slice(0, 8) + "…"} ({a.status})
+                              </option>
+                            );
+                          })}
+                        </Select>
+                      </Field>
+                      <Button
+                        variant="secondary"
+                        disabled={!assigneeId}
+                        loading={assignMutation.isPending}
+                        onClick={() => assigneeId && assignMutation.mutate(assigneeId)}
+                        style={{ width: "100%" }}
+                      >
+                        Assign
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-muted" style={{ fontSize: 12.5 }}>
+                      Delivery module is disabled for this Business — enable it in Business Profile to assign new deliveries.
+                    </p>
+                  )}
                 </div>
-                {business?.deliveryModuleEnabled ? (
-                  <>
-                    <Field label="Assign Delivery Agent">
-                      <Select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-                        <option value="">Choose an agent…</option>
-                        {freeAgents.map((a) => {
-                          const info = nameOf(a.userId);
-                          return (
-                            <option key={a.id} value={a.userId}>
-                              {info ? info.fullName : a.userId.slice(0, 8) + "…"} ({a.status})
-                            </option>
-                          );
-                        })}
-                      </Select>
-                    </Field>
-                    <Button
-                      variant="secondary"
-                      disabled={!assigneeId}
-                      loading={assignMutation.isPending}
-                      onClick={() => assigneeId && assignMutation.mutate(assigneeId)}
-                      style={{ width: "100%" }}
-                    >
-                      Assign
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-muted" style={{ fontSize: 12.5 }}>
-                    Delivery module is disabled for this Business — enable it in Business Profile to assign new deliveries.
-                  </p>
-                )}
-              </div>
-            </CardBody>
-          </Card>
+              </CardBody>
+            </Card>
+          )}
         </div>
       </div>
 

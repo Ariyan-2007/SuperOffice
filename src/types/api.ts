@@ -364,6 +364,8 @@ export type OrderStatus =
   | "Confirmed"
   | "OutForDelivery"
   | "Delivered"
+  | "AwaitingPickup" // added 2026-08-18, §9.47 — Pickup-order equivalent of OutForDelivery
+  | "PickedUp" // added 2026-08-18, §9.47 — Pickup-order equivalent of Delivered
   | "Cancelled"
   | "Refunded";
 
@@ -699,9 +701,11 @@ export interface BusinessDashboardResponse {
   currency: string;
 }
 
-// ---------- returns / RMAs (added 2026-08-16, §9.21) ----------
+// ---------- returns / RMAs / exchanges (added 2026-08-16, §9.21; Exchange added 2026-08-18, §9.49) ----------
 
-export type ReturnStatus = "Requested" | "Approved" | "Rejected" | "Received" | "Refunded" | "Cancelled";
+// "Exchanged" is a distinct terminal state from "Refunded" — an exchange moves no money. Never
+// render it with the same badge color as "Refunded".
+export type ReturnStatus = "Requested" | "Approved" | "Rejected" | "Received" | "Refunded" | "Cancelled" | "Exchanged";
 export type ReturnReason = "Damaged" | "WrongItem" | "NotAsDescribed" | "ChangedMind" | "SizeOrFit" | "Other";
 export type ReturnResolution = "Refund" | "Exchange" | "StoreCredit";
 
@@ -712,6 +716,9 @@ export interface ReturnItem {
   quantity: number;
   unitPrice: number;
   lineRefund: number;
+  // Added 2026-08-18, §9.49 — populated only on a line whose Resolution is Exchange.
+  desiredVariantId: string | null;
+  desiredVariantSummary: string | null; // e.g. "Large" — display label for the variant above
 }
 
 export interface ReturnStatusEventResponse {
@@ -736,6 +743,8 @@ export interface ReturnResponse {
   currency: string;
   restocked: boolean;
   refundedAt: string | null;
+  exchanged: boolean; // added 2026-08-18, §9.49 — mirrors restocked/refundedAt
+  exchangedAt: string | null;
   statusHistory: ReturnStatusEventResponse[];
   createdAt: string;
 }

@@ -56,6 +56,10 @@
   --info-bg: hsl(210 90% 96%);
   --neutral: hsl(220 9% 46%);
   --neutral-bg: hsl(220 14% 94%);
+  /* Distinct hue from every other tone (red/amber/green/blue/indigo above) — reserved for
+     "Exchanged" so it's never visually confusable with "Refunded" (§9.49). */
+  --exchange: hsl(180 65% 32%);
+  --exchange-bg: hsl(180 65% 94%);
 
   color-scheme: light;
 }
@@ -86,6 +90,8 @@
   --info-bg: hsl(210 55% 16%);
   --neutral: hsl(220 9% 65%);
   --neutral-bg: hsl(220 14% 18%);
+  --exchange: hsl(180 55% 58%);
+  --exchange-bg: hsl(180 40% 15%);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.35);
@@ -735,6 +741,14 @@ button {
   color: var(--text-faint);
 }
 
+.stat-value-positive {
+  color: var(--success);
+}
+
+.stat-value-negative {
+  color: var(--danger);
+}
+
 /* ---------- table ---------- */
 
 .table-wrap {
@@ -843,6 +857,10 @@ table.data-table {
 :root[data-theme="dark"] .badge-brand {
   background: color-mix(in srgb, var(--brand-500) 20%, transparent);
   color: var(--brand-300);
+}
+.badge-exchange {
+  background: var(--exchange-bg);
+  color: var(--exchange);
 }
 
 /* ---------- misc ---------- */
@@ -1092,6 +1110,226 @@ table.data-table {
   border-bottom-color: var(--brand-500);
 }
 
+/* ---------- date range picker ---------- */
+
+.date-range-picker {
+  position: relative;
+  display: inline-block;
+}
+
+.date-range-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 550;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.date-range-trigger:hover {
+  border-color: var(--text-faint);
+}
+
+.date-range-trigger svg:first-child {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.date-range-trigger svg:last-child {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.date-range-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: date-range-pop-in 0.12s ease;
+}
+
+@keyframes date-range-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.date-range-popover-body {
+  display: flex;
+}
+
+.date-range-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  min-width: 138px;
+  border-right: 1px solid var(--border);
+}
+
+.date-range-preset {
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.date-range-preset:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.date-range-preset.active {
+  background: var(--brand-50);
+  color: var(--brand-700);
+  font-weight: 650;
+}
+
+:root[data-theme="dark"] .date-range-preset.active {
+  background: color-mix(in srgb, var(--brand-500) 18%, transparent);
+  color: var(--brand-300);
+}
+
+.date-range-calendar {
+  padding: 14px 16px;
+  width: 272px;
+}
+
+.date-range-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.date-range-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.date-range-weekdays span {
+  display: block;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 650;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.date-range-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 2px;
+}
+
+.date-range-day {
+  position: relative;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.date-range-day:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.date-range-day:disabled {
+  cursor: default;
+}
+
+.date-range-day.muted {
+  color: var(--text-faint);
+  opacity: 0.4;
+}
+
+.date-range-day.today {
+  box-shadow: inset 0 0 0 1px var(--brand-400);
+}
+
+.date-range-day.in-range {
+  background: var(--brand-50);
+  border-radius: 0;
+}
+
+:root[data-theme="dark"] .date-range-day.in-range {
+  background: color-mix(in srgb, var(--brand-500) 16%, transparent);
+}
+
+.date-range-day.range-start,
+.date-range-day.range-end {
+  background: var(--brand-500);
+  color: var(--brand-contrast);
+  font-weight: 650;
+}
+
+.date-range-day.range-start:hover,
+.date-range-day.range-end:hover {
+  background: var(--brand-600);
+}
+
+.date-range-day.range-start {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.date-range-day.range-end {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.date-range-day.range-start.range-end {
+  border-radius: var(--radius-sm);
+}
+
+.date-range-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+
+.date-range-footer-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .pagination {
   display: flex;
   align-items: center;
@@ -1163,6 +1401,57 @@ table.data-table {
 .kv-grid dd {
   margin: 0;
   color: var(--text);
+}
+
+/* Financial breakdowns (P&L, balance sheet) — numbers right-aligned and tabular, the way any
+   statement of amounts should read, plus subtotal/final rows and section headers to make the
+   arithmetic and grouping obvious at a glance instead of a flat list of equally-weighted numbers. */
+.kv-grid-financial {
+  grid-template-columns: 1fr auto;
+}
+
+.kv-grid-financial dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.kv-grid-section {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.kv-grid-section:first-child {
+  margin-top: 0;
+}
+
+.kv-grid dt.kv-subtotal,
+.kv-grid dd.kv-subtotal {
+  font-weight: 650;
+  color: var(--text);
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.kv-grid dt.kv-final,
+.kv-grid dd.kv-final {
+  font-weight: 700;
+  font-size: 15.5px;
+  color: var(--text);
+  padding-top: 12px;
+  border-top: 1px solid var(--border-strong);
+}
+
+.kv-grid dd.positive {
+  color: var(--success);
+}
+
+.kv-grid dd.negative {
+  color: var(--danger);
 }
 
 .auth-shell {

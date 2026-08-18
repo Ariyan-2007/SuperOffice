@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { RotateCcw } from "lucide-react";
+import { Repeat, RotateCcw } from "lucide-react";
 import { returnApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { useBusinessId } from "../../context/useBusinessId";
@@ -17,16 +17,24 @@ import { Modal } from "../../components/Modal";
 import { Field, Input, Select, Textarea } from "../../components/Field";
 import { useToast } from "../../context/ToastContext";
 import { formatDate, formatMoney } from "../../lib/format";
-import type { ReturnResponse, ReturnStatus } from "../../types/api";
+import type { ReturnResolution, ReturnResponse, ReturnStatus } from "../../types/api";
 
-const STATUS_OPTIONS: (ReturnStatus | "All")[] = ["All", "Requested", "Approved", "Rejected", "Received", "Refunded", "Cancelled"];
-const STATUS_TONE: Record<ReturnStatus, "warning" | "info" | "danger" | "brand" | "success" | "neutral"> = {
+const STATUS_OPTIONS: (ReturnStatus | "All")[] = ["All", "Requested", "Approved", "Rejected", "Received", "Refunded", "Exchanged", "Cancelled"];
+// "Exchanged" gets its own tone (never the same color as "Refunded" — §9.49, an exchange moves
+// no money and is a genuinely distinct terminal state).
+const STATUS_TONE: Record<ReturnStatus, "warning" | "info" | "danger" | "brand" | "success" | "neutral" | "exchange"> = {
   Requested: "warning",
   Approved: "info",
   Rejected: "danger",
   Received: "brand",
   Refunded: "success",
+  Exchanged: "exchange",
   Cancelled: "neutral",
+};
+const RESOLUTION_TONE: Record<ReturnResolution, "neutral" | "exchange" | "info"> = {
+  Refund: "neutral",
+  Exchange: "exchange",
+  StoreCredit: "info",
 };
 
 export function ReturnsPage() {
@@ -65,13 +73,33 @@ export function ReturnsPage() {
     onError: (err) => notify(err instanceof ApiError ? err.message : "Could not record refund.", "error"),
   });
 
+  // §9.49 (added 2026-08-18) — Staff-tier, not Admin: an exchange moves no money, so it isn't
+  // gated behind canRefund the way the Refund action is.
+  const exchangeMutation = useMutation({
+    mutationFn: (id: string) => returnApi.exchange(businessId, id),
+    onSuccess: () => {
+      invalidate();
+      notify("Exchange completed — the order's items were updated.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not complete exchange.", "error"),
+  });
+
   const columns: Column<ReturnResponse>[] = [
     { key: "rma", header: "RMA", render: (r) => <span style={{ fontWeight: 650 }}>{r.rmaNumber}</span> },
     { key: "order", header: "Order", render: (r) => r.orderNumber },
     { key: "reason", header: "Reason", render: (r) => r.reason },
+    { key: "resolution", header: "Resolution", render: (r) => <Badge tone={RESOLUTION_TONE[r.resolution]}>{r.resolution}</Badge> },
     { key: "items", header: "Items", render: (r) => r.items.reduce((sum, i) => sum + i.quantity, 0) },
-    { key: "requested", header: "Requested", render: (r) => formatMoney(r.requestedRefundAmount, r.currency || currency) },
-    { key: "approved", header: "Approved", render: (r) => (r.approvedRefundAmount != null ? formatMoney(r.approvedRefundAmount, r.currency || currency) : "—") },
+    {
+      key: "requested",
+      header: "Requested / Value",
+      render: (r) => formatMoney(r.requestedRefundAmount, r.currency || currency),
+    },
+    {
+      key: "approved",
+      header: "Approved",
+      render: (r) => (r.approvedRefundAmount != null ? formatMoney(r.approvedRefundAmount, r.currency || currency) : "—"),
+    },
     { key: "date", header: "Requested At", render: (r) => formatDate(r.createdAt) },
     { key: "status", header: "Status", render: (r) => <Badge tone={STATUS_TONE[r.status]}>{r.status}</Badge> },
     {
@@ -87,7 +115,12 @@ export function ReturnsPage() {
               Mark received
             </Button>
           )}
-          {r.status === "Received" && canRefund && (
+          {r.status === "Received" && r.resolution === "Exchange" && (
+            <Button size="sm" variant="primary" loading={exchangeMutation.isPending} onClick={() => exchangeMutation.mutate(r.id)}>
+              <Repeat size={13} /> Exchange
+            </Button>
+          )}
+          {r.status === "Received" && r.resolution !== "Exchange" && canRefund && (
             <Button size="sm" variant="primary" loading={refundMutation.isPending} onClick={() => refundMutation.mutate(r.id)}>
               Refund
             </Button>
@@ -101,7 +134,10 @@ export function ReturnsPage() {
 
   return (
     <div className="section-stack">
-      <PageHeader title="Returns" subtitle="Requested → Approved → Received → Refunded. Each step is a distinct action, not one button." />
+      <PageHeader
+        title="Returns"
+        subtitle="Requested → Approved → Received → Refunded or Exchanged, branched on Resolution. Each step is a distinct action, not one button."
+      />
 
       <div className="filter-bar">
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReturnStatus | "All")}>
@@ -176,11 +212,19 @@ function DecisionModal({
       }
     >
       <div className="section-stack">
+        {ret.resolution === "Exchange" && (
+          <Badge tone="exchange">Exchange — no money changes hands, same price/different variant only</Badge>
+        )}
         <div style={{ fontSize: 13 }}>
           <div className="text-muted" style={{ marginBottom: 6 }}>{ret.reason}{ret.reasonNote ? `: ${ret.reasonNote}` : ""}</div>
           {ret.items.map((i) => (
             <div key={i.productId} style={{ marginBottom: 4 }}>
-              {i.quantity}× {i.productName} — <span className="text-muted">{formatMoney(i.lineRefund, ret.currency || currency)}</span>
+              {i.quantity}× {i.productName}
+              {i.desiredVariantSummary ? (
+                <> → exchange for <strong>{i.desiredVariantSummary}</strong></>
+              ) : (
+                <> — <span className="text-muted">{formatMoney(i.lineRefund, ret.currency || currency)}</span></>
+              )}
             </div>
           ))}
         </div>
@@ -191,7 +235,14 @@ function DecisionModal({
           </Select>
         </Field>
         {approve && (
-          <Field label="Approved Refund Amount" hint={`Can be less than the requested ${formatMoney(ret.requestedRefundAmount, ret.currency || currency)} (e.g. a restocking fee), never more.`}>
+          <Field
+            label={ret.resolution === "Exchange" ? "Approved Value" : "Approved Refund Amount"}
+            hint={
+              ret.resolution === "Exchange"
+                ? "The value of the goods being exchanged — no money actually changes hands, this doesn't settle a refund."
+                : `Can be less than the requested ${formatMoney(ret.requestedRefundAmount, ret.currency || currency)} (e.g. a restocking fee), never more.`
+            }
+          >
             <Input type="number" step="0.01" min="0" max={ret.requestedRefundAmount} value={amount} onChange={(e) => setAmount(e.target.value)} />
           </Field>
         )}

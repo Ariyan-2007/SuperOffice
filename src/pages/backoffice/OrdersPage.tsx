@@ -14,7 +14,17 @@ import { Input, Select } from "../../components/Field";
 import { formatDateTime, formatMoney } from "../../lib/format";
 import type { OrderResponse, OrderStatus, PaymentStatus } from "../../types/api";
 
-const ALL_STATUSES: OrderStatus[] = ["PendingPayment", "Processing", "Confirmed", "OutForDelivery", "Delivered", "Cancelled", "Refunded"];
+const ALL_STATUSES: OrderStatus[] = [
+  "PendingPayment",
+  "Processing",
+  "Confirmed",
+  "OutForDelivery",
+  "Delivered",
+  "AwaitingPickup",
+  "PickedUp",
+  "Cancelled",
+  "Refunded",
+];
 const ALL_PAYMENT_STATUSES: PaymentStatus[] = ["Pending", "Paid", "Failed", "Refunded"];
 
 export function OrdersPage() {
