@@ -35,7 +35,13 @@ export function setAuthFailureHandler(fn: () => void): void {
   onAuthFailure = fn;
 }
 
-export const http: AxiosInstance = axios.create({ baseURL: API_BASE_URL });
+// `ngrok-skip-browser-warning` bypasses ngrok's free-tier browser-warning interstitial (which
+// otherwise intercepts every real-browser request — CORS preflight succeeds, but the actual
+// GET/POST gets ngrok's own HTML page instead of hitting the API, surfacing as a generic CORS
+// error even though the API's own CORS policy is fine). Harmless against a non-ngrok backend.
+export const NGROK_SKIP_WARNING_HEADER = { "ngrok-skip-browser-warning": "true" };
+
+export const http: AxiosInstance = axios.create({ baseURL: API_BASE_URL, headers: NGROK_SKIP_WARNING_HEADER });
 
 // Called once by DemoModeProvider when connectivity checking finds no reachable backend —
 // every subsequent request on this instance resolves against the local DemoStore instead.
@@ -57,9 +63,11 @@ async function refreshAccessToken(): Promise<string | null> {
   const tokens = tokenStore.get();
   if (!tokens?.refreshToken) return null;
   try {
-    const res = await axios.post<AuthResponse>(`${API_BASE_URL}/api/auth/refresh`, {
-      refreshToken: tokens.refreshToken,
-    });
+    const res = await axios.post<AuthResponse>(
+      `${API_BASE_URL}/api/auth/refresh`,
+      { refreshToken: tokens.refreshToken },
+      { headers: NGROK_SKIP_WARNING_HEADER },
+    );
     tokenStore.set({
       accessToken: res.data.accessToken,
       accessTokenExpiresAt: res.data.accessTokenExpiresAt,

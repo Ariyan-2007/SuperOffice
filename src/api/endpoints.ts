@@ -1,6 +1,6 @@
 // Thin, typed wrappers over every Vastora endpoint used by this app. Grouped by resource,
 // mirroring §7 of the BackOffice blueprint and §6 of the SuperOffice blueprint.
-import { http } from "./client";
+import { http, NGROK_SKIP_WARNING_HEADER } from "./client";
 import { API_BASE_URL } from "../config/env";
 import { isDemoMode } from "../demo/state";
 import { demoStore } from "../demo/store";
@@ -13,6 +13,7 @@ import type {
   AuthResponse,
   BalanceSheetResponse,
   BusinessDashboardResponse,
+  BusinessMailSettingsResponse,
   BusinessResponse,
   CategoryResponse,
   CategoryTreeNode,
@@ -60,6 +61,8 @@ import type {
   TenantAnalyticsResponse,
   TenantResponse,
   TenantUsageResponse,
+  UpdateBusinessDomainsRequest,
+  UpdateBusinessMailSettingsRequest,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
@@ -83,7 +86,7 @@ export async function fetchBusinessBySlug(slug: string): Promise<BusinessRespons
     return business;
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/shop/${encodeURIComponent(slug)}`);
+  const res = await fetch(`${API_BASE_URL}/api/shop/${encodeURIComponent(slug)}`, { headers: NGROK_SKIP_WARNING_HEADER });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw Object.assign(new Error(body?.title ?? `Business lookup failed (${res.status})`), {
@@ -101,7 +104,8 @@ export const authApi = {
   logout: (refreshToken: string) => http.post<void>("/api/auth/logout", { refreshToken }).then((r) => r.data),
   me: () => http.get<UserSummaryResponse>("/api/auth/me").then((r) => r.data),
   updateMe: (data: { fullName: string; phone: string }) => http.put<UserSummaryResponse>("/api/auth/me", data).then((r) => r.data),
-  forgotPassword: (email: string) => http.post<void>("/api/auth/forgot-password", { email }).then((r) => r.data),
+  forgotPassword: (email: string, redirectBaseUrl?: string) =>
+    http.post<void>("/api/auth/forgot-password", { email, redirectBaseUrl }).then((r) => r.data),
   resetPassword: (token: string, newPassword: string) =>
     http.post<void>("/api/auth/reset-password", { token, newPassword }).then((r) => r.data),
 };
@@ -134,6 +138,22 @@ export const superOfficeBusinessApi = {
     http.patch<BusinessResponse>(`/api/superoffice/businesses/${businessId}/status`, JSON.stringify(status), {
       headers: { "Content-Type": "application/json" },
     }).then((r) => r.data),
+  // Added 2026-08-19 — sets shopDomain/backOfficeDomain. Not routing/DNS/TLS, just what the
+  // backend validates redirectBaseUrl and resolves relative logo/banner URLs against.
+  setDomains: (businessId: string, data: UpdateBusinessDomainsRequest) =>
+    http.patch<BusinessResponse>(`/api/superoffice/businesses/${businessId}/domains`, data).then((r) => r.data),
+};
+
+// ---------- superoffice business mail settings (added 2026-08-19, §9.10) ----------
+// Deliberately SuperOffice-only — no BackOffice route exists for this, not even for a
+// BusinessAdmin. Until `enabled`/`host` are set, mail for that Business silently falls back to
+// the platform's own SMTP account, so leaving it unconfigured is a safe default.
+
+export const mailSettingsApi = {
+  get: (businessId: string) =>
+    http.get<BusinessMailSettingsResponse>(`/api/superoffice/businesses/${businessId}/mail-settings`).then((r) => r.data),
+  update: (businessId: string, data: UpdateBusinessMailSettingsRequest) =>
+    http.put<BusinessMailSettingsResponse>(`/api/superoffice/businesses/${businessId}/mail-settings`, data).then((r) => r.data),
 };
 
 // ---------- backoffice business profile ----------

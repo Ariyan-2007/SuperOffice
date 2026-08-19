@@ -3,6 +3,7 @@ import { DEMO_EMAILS, DEMO_PASSWORD } from "./config";
 import type {
   ApiKeyResponse,
   AuditLogResponse,
+  BusinessMailSettingsResponse,
   BusinessResponse,
   CategoryResponse,
   ContentBlockResponse,
@@ -62,6 +63,8 @@ export interface DemoData {
   expenses: ExpenseResponse[];
   // --- added 2026-08-16 (§9B) ---
   invoicingByBusiness: Record<string, InvoiceSettings>;
+  // --- added 2026-08-19 (§9.10) — password stored separately, mirroring the real API never echoing it back ---
+  mailSettingsByBusiness: Record<string, BusinessMailSettingsResponse & { password: string }>;
   returns: WithBusiness<ReturnResponse>[];
   reviews: WithBusiness<ReviewResponse>[];
   promotions: WithBusiness<PromotionResponse>[];
@@ -225,6 +228,7 @@ export function buildSeed(): DemoData {
     ownerUserId: "u-owner",
     contactEmail: "ariyanjahangireng@gmail.com",
     contactPhone: "+8801817274124",
+    superOfficeDomain: "superoffice.vastora-holdings.dev",
     createdAt: daysAgo(180),
   };
 
@@ -234,7 +238,8 @@ export function buildSeed(): DemoData {
       tenantId: TENANT_ID,
       name: "Vastora",
       slug: PRIMARY_SLUG,
-      customDomain: null,
+      shopDomain: null,
+      backOfficeDomain: null,
       description: "Neighborhood grocery delivering fresh produce, pantry staples and bakery goods same-day.",
       logoUrl: "",
       bannerUrl: "",
@@ -256,7 +261,8 @@ export function buildSeed(): DemoData {
       tenantId: TENANT_ID,
       name: "Northwind Bakery",
       slug: "northwind-bakery",
-      customDomain: null,
+      shopDomain: null,
+      backOfficeDomain: null,
       description: "Small-batch sourdough and pastries. Still finishing setup.",
       logoUrl: "",
       bannerUrl: "",
@@ -278,7 +284,8 @@ export function buildSeed(): DemoData {
       tenantId: TENANT_ID,
       name: "Cedar & Sage",
       slug: "cedar-and-sage",
-      customDomain: null,
+      shopDomain: null,
+      backOfficeDomain: null,
       description: "Home & wellness goods. Paused while restocking suppliers.",
       logoUrl: "",
       bannerUrl: "",
@@ -728,6 +735,7 @@ export function buildSeed(): DemoData {
   return {
     tenant, businesses, users, categories, products, coupons, deliveryAgents, orders, stockMovements, expenses,
     invoicingByBusiness,
+    mailSettingsByBusiness: {},
     returns, reviews, promotions, customerGroups, customerGroupMembers, giftCards, storeCredit, shippingZones, content,
     auditLog: [], webhooks: [], webhookDeliveries: [], apiKeys: [],
   };

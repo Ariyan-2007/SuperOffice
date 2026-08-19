@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { APP_NAME } from "../config/env";
 import { useDemoMode } from "../demo/DemoModeContext";
 import { DEMO_LOGO_URL } from "../demo/config";
-import { resolveMediaUrl } from "../lib/media";
+import { RemoteImage } from "../components/RemoteImage";
 
 export function AuthLayout({
   brandName,
@@ -28,7 +28,7 @@ export function AuthLayout({
       <div className="auth-card">
         <div className="auth-brand">
           {logoUrl ? (
-            <img src={resolveMediaUrl(logoUrl)} alt="" className="auth-brand-logo" />
+            <RemoteImage src={logoUrl} alt="" className="auth-brand-logo" />
           ) : isDemoMode ? (
             <img src={DEMO_LOGO_URL} alt="" className="auth-brand-logo" />
           ) : (

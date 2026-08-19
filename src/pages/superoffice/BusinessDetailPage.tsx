@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Ban, CheckCircle2, ImagePlus, X } from "lucide-react";
-import { businessApi, superOfficeBusinessApi } from "../../api/endpoints";
+import { ArrowLeft, Ban, CheckCircle2, Globe, ImagePlus, Mail, X } from "lucide-react";
+import { businessApi, mailSettingsApi, superOfficeBusinessApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
 import { PageHeader } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -14,10 +14,10 @@ import { Button } from "../../components/Button";
 import { PageLoader } from "../../components/Feedback";
 import { BusinessStatusBadge } from "../../components/Badge";
 import { ConfirmDialog } from "../../components/Modal";
+import { RemoteImage } from "../../components/RemoteImage";
 import { useToast } from "../../context/ToastContext";
 import { formatCurrencyLabel } from "../../lib/currencies";
-import { resolveMediaUrl } from "../../lib/media";
-import type { BusinessStatus, UpdateBusinessRequest } from "../../types/api";
+import type { BusinessResponse, BusinessStatus, UpdateBusinessDomainsRequest, UpdateBusinessMailSettingsRequest, UpdateBusinessRequest } from "../../types/api";
 
 export function BusinessDetailPage() {
   const { businessId = "" } = useParams();
@@ -176,7 +176,7 @@ export function BusinessDetailPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                   {logoUrl && (
                     <div style={{ position: "relative" }}>
-                      <img src={resolveMediaUrl(logoUrl)} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                      <RemoteImage src={logoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
                       <button
                         type="button"
                         className="icon-btn"
@@ -209,7 +209,7 @@ export function BusinessDetailPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                   {bannerUrl && (
                     <div style={{ position: "relative" }}>
-                      <img src={resolveMediaUrl(bannerUrl)} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                      <RemoteImage src={bannerUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
                       <button
                         type="button"
                         className="icon-btn"
@@ -279,6 +279,10 @@ export function BusinessDetailPage() {
         </CardBody>
       </Card>
 
+      <DomainsCard business={business} />
+
+      <MailSettingsCard businessId={businessId} />
+
       <ConfirmDialog
         open={!!confirmingStatus}
         title={confirmingStatus === "Suspended" ? "Suspend Business" : "Activate Business"}
@@ -294,5 +298,177 @@ export function BusinessDetailPage() {
         onCancel={() => setConfirmingStatus(null)}
       />
     </div>
+  );
+}
+
+function DomainsCard({ business }: { business: BusinessResponse }) {
+  const { notify } = useToast();
+  const queryClient = useQueryClient();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<UpdateBusinessDomainsRequest>({
+    defaultValues: { shopDomain: business.shopDomain, backOfficeDomain: business.backOfficeDomain },
+  });
+
+  useEffect(() => {
+    reset({ shopDomain: business.shopDomain, backOfficeDomain: business.backOfficeDomain });
+  }, [business.shopDomain, business.backOfficeDomain, reset]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: UpdateBusinessDomainsRequest) =>
+      superOfficeBusinessApi.setDomains(business.id, {
+        shopDomain: data.shopDomain?.trim() || null,
+        backOfficeDomain: data.backOfficeDomain?.trim() || null,
+      }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["so-business", business.id], updated);
+      queryClient.invalidateQueries({ queryKey: ["so-businesses"] });
+      notify("Domains saved.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not save domains.", "error"),
+  });
+
+  return (
+    <Card>
+      <CardHeader title={<><Globe size={14} style={{ marginRight: 6, verticalAlign: -2 }} />Domains</>} />
+      <CardBody>
+        <p className="text-muted" style={{ fontSize: 12.5, marginBottom: 14, lineHeight: 1.6 }}>
+          Not a routing/DNS/TLS feature yet — pointing an actual domain's DNS at Vastora is still open
+          infrastructure work. Setting these controls what outbound email links resolve to and which
+          address a password-reset link is allowed to redirect back to. Safe to leave both unset.
+        </p>
+        <form
+          onSubmit={handleSubmit((v) => updateMutation.mutate(v))}
+          className="section-stack"
+        >
+          <div className="form-grid">
+            <Field
+              label="Shop Domain"
+              optional
+              error={errors.shopDomain?.message}
+              hint="This Business's customer-facing Shop address, e.g. shop.antivaly.com"
+            >
+              <Input hasError={!!errors.shopDomain} placeholder="shop.example.com" {...register("shopDomain")} />
+            </Field>
+            <Field
+              label="BackOffice Domain"
+              optional
+              error={errors.backOfficeDomain?.message}
+              hint="Where this Business's own staff sign in, e.g. staff.antivaly.com"
+            >
+              <Input hasError={!!errors.backOfficeDomain} placeholder="staff.example.com" {...register("backOfficeDomain")} />
+            </Field>
+          </div>
+          <div className="form-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => reset({ shopDomain: business.shopDomain, backOfficeDomain: business.backOfficeDomain })}
+              disabled={!isDirty}
+            >
+              Discard
+            </Button>
+            <Button type="submit" variant="primary" loading={isSubmitting || updateMutation.isPending} disabled={!isDirty}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </CardBody>
+    </Card>
+  );
+}
+
+function MailSettingsCard({ businessId }: { businessId: string }) {
+  const { notify } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: mailSettings, isLoading } = useQuery({
+    queryKey: ["so-business-mail", businessId],
+    queryFn: () => mailSettingsApi.get(businessId),
+  });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<UpdateBusinessMailSettingsRequest>();
+
+  const enabled = watch("enabled");
+
+  useEffect(() => {
+    if (mailSettings) reset({ ...mailSettings, password: null });
+  }, [mailSettings, reset]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: UpdateBusinessMailSettingsRequest) => mailSettingsApi.update(businessId, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["so-business-mail", businessId], updated);
+      notify("Mail settings saved.", "success");
+    },
+    onError: (err) => notify(err instanceof ApiError ? err.message : "Could not save mail settings.", "error"),
+  });
+
+  if (isLoading || !mailSettings) return null;
+
+  return (
+    <Card>
+      <CardHeader title={<><Mail size={14} style={{ marginRight: 6, verticalAlign: -2 }} />Email</>} />
+      <CardBody>
+        <p className="text-muted" style={{ fontSize: 12.5, marginBottom: 14, lineHeight: 1.6 }}>
+          Every email addressed to this Business's world — customers, staff, delivery agents — sends through this
+          SMTP account once enabled. Leaving it off is a safe default: mail silently falls back to the platform's
+          own account instead.
+        </p>
+        <form onSubmit={handleSubmit((v) => updateMutation.mutate({ ...v, password: v.password || null }))} className="section-stack">
+          <label className="checkbox-row" style={{ height: 38 }}>
+            <input type="checkbox" {...register("enabled")} />
+            Send this Business's email through its own SMTP account
+          </label>
+          <div className="form-grid">
+            <Field label="SMTP Host" error={errors.host?.message}>
+              <Input hasError={!!errors.host} placeholder="smtp.example.com" {...register("host", { required: enabled ? "Host is required" : false })} />
+            </Field>
+            <Field label="Port" error={errors.port?.message}>
+              <Input type="number" hasError={!!errors.port} {...register("port", { valueAsNumber: true, required: enabled ? "Port is required" : false, min: 1, max: 65535 })} />
+            </Field>
+            <Field label="Username" error={errors.username?.message}>
+              <Input hasError={!!errors.username} {...register("username", { required: enabled ? "Username is required" : false })} />
+            </Field>
+            <Field
+              label="Password"
+              optional
+              hint={mailSettings.hasPassword ? "A password is on file — leave blank to keep it unchanged." : "No password on file yet."}
+            >
+              <Input type="password" autoComplete="new-password" placeholder={mailSettings.hasPassword ? "••••••••" : ""} {...register("password")} />
+            </Field>
+            <Field label="From Address" error={errors.fromAddress?.message}>
+              <Input
+                type="email"
+                hasError={!!errors.fromAddress}
+                placeholder="orders@example.com"
+                {...register("fromAddress", { required: enabled ? "From address is required" : false })}
+              />
+            </Field>
+            <Field label="From Name" error={errors.fromName?.message}>
+              <Input hasError={!!errors.fromName} placeholder={mailSettings.fromName || "e.g. Business Name"} {...register("fromName")} />
+            </Field>
+          </div>
+          <div className="form-actions">
+            <Button type="button" variant="secondary" onClick={() => reset({ ...mailSettings, password: null })} disabled={!isDirty}>
+              Discard
+            </Button>
+            <Button type="submit" variant="primary" loading={isSubmitting || updateMutation.isPending} disabled={!isDirty}>
+              Save changes
+            </Button>
+          </div>
+        </form>
+      </CardBody>
+    </Card>
   );
 }

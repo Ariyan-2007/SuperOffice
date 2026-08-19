@@ -18,7 +18,7 @@ import { PageLoader, InfoBanner } from "../../components/Feedback";
 import { BusinessStatusBadge } from "../../components/Badge";
 import { useToast } from "../../context/ToastContext";
 import { formatCurrencyLabel } from "../../lib/currencies";
-import { resolveMediaUrl } from "../../lib/media";
+import { RemoteImage } from "../../components/RemoteImage";
 import type { UpdateBusinessRequest } from "../../types/api";
 
 interface ProfileForm {
@@ -209,7 +209,7 @@ export function BusinessProfilePage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                     {logoUrl && (
                       <div style={{ position: "relative" }}>
-                        <img src={resolveMediaUrl(logoUrl)} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                        <RemoteImage src={logoUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
                         {canEdit && (
                           <button
                             type="button"
@@ -250,7 +250,7 @@ export function BusinessProfilePage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
                     {bannerUrl && (
                       <div style={{ position: "relative" }}>
-                        <img src={resolveMediaUrl(bannerUrl)} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                        <RemoteImage src={bannerUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
                         {canEdit && (
                           <button
                             type="button"

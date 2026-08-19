@@ -4,7 +4,7 @@ import type { ComponentType } from "react";
 import { APP_NAME } from "../config/env";
 import { useDemoMode } from "../demo/DemoModeContext";
 import { DEMO_LOGO_URL } from "../demo/config";
-import { resolveMediaUrl } from "../lib/media";
+import { RemoteImage } from "../components/RemoteImage";
 
 export interface NavItem {
   to: string;
@@ -40,7 +40,7 @@ export function Sidebar({ brandName, logoUrl, sections, open, onNavigate }: Side
     <aside className={clsx("sidebar", open && "open")}>
       <div className="sidebar-brand">
         {logoUrl ? (
-          <img src={resolveMediaUrl(logoUrl)} alt="" className="sidebar-brand-logo" />
+          <RemoteImage src={logoUrl} alt="" className="sidebar-brand-logo" />
         ) : isDemoMode ? (
           <img src={DEMO_LOGO_URL} alt="" className="sidebar-brand-logo" style={{ background: "transparent" }} />
         ) : (
