@@ -27,6 +27,8 @@ import type {
   ProductStatus,
   ReviewStatus,
   SendDiscountEmailRequest,
+  UpdateBusinessDomainsRequest,
+  UpdateBusinessMailSettingsRequest,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
@@ -197,6 +199,33 @@ const routes: RouteDef[] = [
     auth: "required",
     handler: ({ params, body }) => {
       const business = demoStore.setBusinessStatus(params.businessId, body as BusinessStatus);
+      return business ? ok(business) : fail(404, "Business not found.");
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/superoffice/businesses/:businessId/mail-settings",
+    auth: "required",
+    handler: ({ params }) => {
+      const settings = demoStore.getMailSettings(params.businessId);
+      return settings ? ok(settings) : fail(404, "Business not found.");
+    },
+  },
+  {
+    method: "PUT",
+    path: "/api/superoffice/businesses/:businessId/mail-settings",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const settings = demoStore.updateMailSettings(params.businessId, body as UpdateBusinessMailSettingsRequest);
+      return settings ? ok(settings) : fail(404, "Business not found.");
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/superoffice/businesses/:businessId/domains",
+    auth: "required",
+    handler: ({ params, body }) => {
+      const business = demoStore.setDomains(params.businessId, body as UpdateBusinessDomainsRequest);
       return business ? ok(business) : fail(404, "Business not found.");
     },
   },

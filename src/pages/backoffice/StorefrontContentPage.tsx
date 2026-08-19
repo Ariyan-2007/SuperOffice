@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, ImagePlus, Pencil, Plus, Trash2, X } from "lucide-react";
 import { contentApi } from "../../api/endpoints";
 import { ApiError } from "../../api/client";
-import { resolveMediaUrl } from "../../lib/media";
+import { RemoteImage } from "../../components/RemoteImage";
 import { useBusinessId } from "../../context/useBusinessId";
 import { PageHeader } from "../../components/StatCard";
 import { Button } from "../../components/Button";
@@ -275,7 +275,7 @@ function ContentModal({
             <div className="span-2" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {imageUrl && (
                 <div style={{ position: "relative" }}>
-                  <img src={resolveMediaUrl(imageUrl)} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                  <RemoteImage src={imageUrl} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
                   <button
                     type="button"
                     className="icon-btn"

@@ -5,6 +5,7 @@ import type {
   AuditLogResponse,
   BalanceSheetResponse,
   BusinessDashboardResponse,
+  BusinessMailSettingsResponse,
   BusinessResponse,
   BusinessStatus,
   CategoryResponse,
@@ -55,6 +56,8 @@ import type {
   TenantAnalyticsResponse,
   TenantResponse,
   TenantUsageResponse,
+  UpdateBusinessDomainsRequest,
+  UpdateBusinessMailSettingsRequest,
   UpdateBusinessRequest,
   UpdateCategoryRequest,
   UpdateCouponRequest,
@@ -221,7 +224,8 @@ class DemoStore {
       tenantId: this.data.tenant.id,
       name: data.name,
       slug: data.slug?.trim() || slugify(data.name),
-      customDomain: null,
+      shopDomain: null,
+      backOfficeDomain: null,
       description: data.description,
       logoUrl: "",
       bannerUrl: "",
@@ -300,6 +304,47 @@ class DemoStore {
     business.deliveryModuleEnabled = enabled;
     this.persist();
     return business;
+  }
+
+  setDomains(id: string, data: UpdateBusinessDomainsRequest): BusinessResponse | null {
+    const business = this.getBusiness(id);
+    if (!business) return null;
+    business.shopDomain = data.shopDomain?.trim() || null;
+    business.backOfficeDomain = data.backOfficeDomain?.trim() || null;
+    this.persist();
+    return business;
+  }
+
+  // ---------- mail settings (added 2026-08-19, §9.10) ----------
+  // Password is genuinely write-only on the real API (never echoed back), so it's kept in the
+  // side record alongside the rest and stripped off before returning, same pattern as invoicing.
+
+  getMailSettings(businessId: string): BusinessMailSettingsResponse | null {
+    if (!this.getBusiness(businessId)) return null;
+    const stored = this.data.mailSettingsByBusiness[businessId];
+    if (!stored) return { enabled: false, host: "", port: 587, username: "", hasPassword: false, fromAddress: "", fromName: "" };
+    const { password: _password, ...rest } = stored;
+    return rest;
+  }
+
+  updateMailSettings(businessId: string, data: UpdateBusinessMailSettingsRequest): BusinessMailSettingsResponse | null {
+    if (!this.getBusiness(businessId)) return null;
+    const current = this.data.mailSettingsByBusiness[businessId];
+    const password = data.password ? data.password : (current?.password ?? "");
+    const stored = {
+      enabled: data.enabled,
+      host: data.host,
+      port: data.port,
+      username: data.username,
+      hasPassword: !!password,
+      fromAddress: data.fromAddress,
+      fromName: data.fromName,
+      password,
+    };
+    this.data.mailSettingsByBusiness[businessId] = stored;
+    this.persist();
+    const { password: _password, ...rest } = stored;
+    return rest;
   }
 
   // ---------- categories ----------

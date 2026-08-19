@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { tenantApi } from "../../api/endpoints";
 import { PageHeader } from "../../components/StatCard";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { PageLoader, InfoBanner } from "../../components/Feedback";
+import { PageLoader, InfoBanner, WarningBanner } from "../../components/Feedback";
 import { Badge } from "../../components/Badge";
 import { formatDate } from "../../lib/format";
 
@@ -22,6 +22,13 @@ export function TenantProfilePage() {
         There's no self-service editing for Tenant profile yet — this is read-only. Contact Vastora support for changes.
       </InfoBanner>
 
+      {!tenant.superOfficeDomain && (
+        <WarningBanner>
+          No SuperOffice domain is set for your Tenant yet — password-reset links sent from this app will fall back
+          to Vastora's platform-wide default address instead of this one. Contact Vastora support to have it set.
+        </WarningBanner>
+      )}
+
       <Card>
         <CardHeader title={tenant.name} actions={<Badge tone={STATUS_TONE[tenant.status]}>{tenant.status}</Badge>} />
         <CardBody>
@@ -36,6 +43,8 @@ export function TenantProfilePage() {
             <dd>{tenant.contactEmail}</dd>
             <dt>Contact Phone</dt>
             <dd>{tenant.contactPhone}</dd>
+            <dt>SuperOffice Domain</dt>
+            <dd className="mono">{tenant.superOfficeDomain ?? "Not set"}</dd>
             <dt>Member Since</dt>
             <dd>{formatDate(tenant.createdAt)}</dd>
           </dl>

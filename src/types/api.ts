@@ -43,6 +43,7 @@ export interface TenantResponse {
   ownerUserId: string;
   contactEmail: string;
   contactPhone: string;
+  superOfficeDomain: string | null; // added 2026-08-19 — read-only here; writer is Platform-only
   createdAt: string;
 }
 
@@ -86,7 +87,8 @@ export interface BusinessResponse {
   tenantId: string;
   name: string;
   slug: string;
-  customDomain: string | null;
+  shopDomain: string | null;       // renamed from customDomain 2026-08-19
+  backOfficeDomain: string | null; // added 2026-08-19
   description: string;
   logoUrl: string;
   bannerUrl: string;
@@ -129,6 +131,35 @@ export interface UpdateBusinessRequest {
   reviewsEnabled?: boolean | null;
   autoPublishReviews?: boolean | null;
   guestCheckoutEnabled?: boolean | null;
+}
+
+// ---------- business mail settings (added 2026-08-19, main blueprint §9.10, SuperOffice-only) ----------
+
+export interface BusinessMailSettingsResponse {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  hasPassword: boolean; // true if a credential is on file — the password itself is never returned
+  fromAddress: string;
+  fromName: string;
+}
+
+export interface UpdateBusinessMailSettingsRequest {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  password: string | null; // omit or send null/"" to leave the stored password unchanged
+  fromAddress: string;
+  fromName: string;
+}
+
+// ---------- business domains (added 2026-08-19, main blueprint §9.10, SuperOffice-only) ----------
+
+export interface UpdateBusinessDomainsRequest {
+  shopDomain: string | null;       // e.g. "shop.antivaly.com" — null/"" clears it
+  backOfficeDomain: string | null; // e.g. "staff.antivaly.com" — null/"" clears it
 }
 
 export interface CategoryResponse {

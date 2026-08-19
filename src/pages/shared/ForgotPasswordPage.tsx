@@ -28,7 +28,7 @@ export function ForgotPasswordPage() {
   const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
     try {
-      await authApi.forgotPassword(email);
+      await authApi.forgotPassword(email, window.location.origin);
       setSent(true);
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");

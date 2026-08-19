@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/env";
-import { enableDemoAdapter } from "../api/client";
+import { enableDemoAdapter, NGROK_SKIP_WARNING_HEADER } from "../api/client";
 
 export type ConnectivityStatus = "checking" | "demo" | "live";
 
@@ -20,7 +20,11 @@ async function probeBackend(timeoutMs = 3500): Promise<boolean> {
   try {
     // Any HTTP response — even 401/404 — proves a server is actually listening. Only a
     // network failure or timeout means there's nothing to talk to.
-    await fetch(`${API_BASE_URL}/api/auth/me`, { signal: controller.signal, cache: "no-store" });
+    await fetch(`${API_BASE_URL}/api/auth/me`, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: NGROK_SKIP_WARNING_HEADER,
+    });
     return true;
   } catch {
     return false;
